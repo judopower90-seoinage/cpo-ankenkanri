@@ -1,2 +1,2424 @@
-# cpo-ankenkanri
-進捗案件の管理システムです
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ArchSFA - 案件管理・SFA</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f7fa',
+                            100: '#e4e8f0',
+                            200: '#cbd5e1',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Leaflet.js (Map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .leaflet-container {
+            font-family: 'Noto Sans JP', sans-serif;
+            z-index: 10;
+        }
+        .safe-scroll {
+            -webkit-overflow-scrolling: touch;
+        }
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            /* A4横1枚（297mm x 210mm）に完全に収める設計 */
+            .print-container {
+                width: 297mm;
+                height: 210mm;
+                padding: 10mm 12mm;
+                box-sizing: border-box;
+                page-break-after: always;
+                background: white !important;
+                overflow: hidden; /* スクロールバーやはみ出しを確実に防止 */
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+            @page {
+                size: A4 landscape;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- 1. ヘッダー -->
+    <header class="bg-brand-800 text-white shadow-md no-print sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3 md:h-16 gap-3">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 p-1.5 md:p-2 rounded-lg text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <div>
+                        <span class="text-lg md:text-xl font-bold tracking-tight">案件管理・SFA</span>
+                        <span class="text-[10px] md:text-xs block text-slate-400">商業建築・店舗施工 営業財務戦略マネージャー</span>
+                    </div>
+                </div>
+                <!-- チーム連携機能 ＆ タブメニュー -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <nav class="flex space-x-1 overflow-x-auto pb-1 md:pb-0 safe-scroll">
+                        <button id="tab-btn-dashboard" onclick="switchTab('dashboard')" class="px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition flex items-center space-x-1.5 whitespace-nowrap bg-blue-600 text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            <span>ダッシュボード</span>
+                        </button>
+                        <button id="tab-btn-projects" onclick="switchTab('projects')" class="px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition flex items-center space-x-1.5 whitespace-nowrap text-slate-300 hover:bg-brand-700">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                            <span>案件管理 <span id="active-count-badge" class="ml-1 bg-slate-700 text-[10px] px-1.5 py-0.5 rounded-full">0</span></span>
+                        </button>
+                        <button id="tab-btn-archive" onclick="switchTab('archive')" class="px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition flex items-center space-x-1.5 whitespace-nowrap text-slate-300 hover:bg-brand-700">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                            <span>没フォルダ <span id="archive-count-badge" class="ml-1 bg-slate-700 text-[10px] px-1.5 py-0.5 rounded-full">0</span></span>
+                        </button>
+                    </nav>
+                    <div class="flex items-center space-x-1 ml-2 border-l border-slate-700 pl-2">
+                        <button onclick="exportData()" title="データをパソコンに保存" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded transition text-xs font-bold flex items-center space-x-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <span class="hidden md:inline">エクスポート</span>
+                        </button>
+                        <button onclick="triggerImportClick()" title="保存したデータを読み込む" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded transition text-xs font-bold flex items-center space-x-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            <span class="hidden md:inline">インポート</span>
+                        </button>
+                        <input type="file" id="import-file-input" accept=".json" onchange="importData(event)" class="hidden" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. 通知トースト -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-x-80 opacity-0 transition-all duration-300 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center space-x-2 text-xs md:text-sm pointer-events-none">
+        <span id="toast-icon" class="text-blue-500"></span>
+        <span id="toast-message">メッセージ</span>
+    </div>
+
+    <!-- 3. カスタム確認ダイアログ -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h4 class="font-bold text-slate-900 text-base mb-1" id="confirm-title">実行しますか？</h4>
+            <p class="text-xs text-slate-500 mb-6" id="confirm-desc">この操作は取り消せません。</p>
+            <div class="flex space-x-2">
+                <button onclick="closeConfirm(false)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">キャンセル</button>
+                <button id="confirm-ok-btn" class="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3.1 【新規】没要因の入力モーダル -->
+    <div id="lost-reason-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h4 class="font-bold text-slate-900 text-base mb-1">没（失注）要因を教えてください</h4>
+            <p class="text-xs text-slate-500 mb-4">今後の営業戦略アドバイスおよびポートフォリオ改善の基礎データとして使用します。</p>
+            
+            <div class="space-y-3 mb-6 text-xs md:text-sm">
+                <div>
+                    <label class="block font-bold text-slate-600 mb-1">分類タグ</label>
+                    <select id="lost-reason-tag" class="w-full p-2 border rounded-lg bg-white">
+                        <option value="価格競合（競合負け）">価格競合（競合負け）</option>
+                        <option value="工期スケジュール不一致">工期スケジュール不一致</option>
+                        <option value="施主側の計画中止・凍結">施主側の計画中止・凍結</option>
+                        <option value="デザイン提案コンペ負け">デザイン提案コンペ負け</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-600 mb-1">具体的な没要因（備考）</label>
+                    <textarea id="lost-reason-notes" rows="3" class="w-full p-2 border rounded-lg" placeholder="予算超過のためコンペ他社決定、など詳細状況..."></textarea>
+                </div>
+            </div>
+
+            <div class="flex space-x-2">
+                <button onclick="closeLostReasonModal(false)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">キャンセル</button>
+                <button onclick="closeLostReasonModal(true)" class="flex-1 py-2 bg-amber-500 hover:bg-amber-650 text-white rounded-xl text-xs font-bold transition">没として保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. メインコンテンツ -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 no-print">
+
+        <!-- 要注意警告インテリジェントリマインダー (契約状況: 未締結 ＆ 引渡日間近 警告) -->
+        <div id="alert-reminder-section" class="mb-6 hidden">
+            <!-- 動的に危険案件を抽出表示 -->
+        </div>
+
+        <!-- A. ダッシュボードタブ -->
+        <section id="tab-content-dashboard" class="space-y-6">
+            
+            <!-- 個人目標設定＆達成率管理セクション -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 目標額の設定フォーム -->
+                <div class="space-y-3 border-b lg:border-b-0 lg:border-r border-slate-100 pb-4 lg:pb-0 lg:pr-6">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center space-x-1.5">
+                        <span class="w-1.5 h-4 bg-blue-600 rounded"></span>
+                        <span>個人年間目標額の設定</span>
+                    </h3>
+                    <p class="text-xs text-slate-400">達成度計算の基準となる個人売上目標額（円単位）を設定します。</p>
+                    <div class="flex items-center space-x-2">
+                        <input type="number" id="target-amount-input" oninput="updateTargetAmount()" class="w-full p-2.5 border rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="目標金額を入力" />
+                        <span class="text-xs font-bold text-slate-500 whitespace-nowrap">円</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 font-semibold">
+                        現在の設定: <span id="target-amount-display" class="text-blue-600 font-bold">¥0</span>
+                    </div>
+                </div>
+
+                <!-- 達成率メーター (Aランク契約済みベース) -->
+                <div class="space-y-2 flex flex-col justify-center">
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-slate-600 flex items-center space-x-1">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <span>契約確定(Aランク) 達成率</span>
+                        </span>
+                        <span id="achievement-rate-a" class="text-emerald-600 text-sm">0.0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                        <div id="achievement-bar-a" class="bg-emerald-500 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-slate-400">
+                        <span>確定実績: <span id="achieved-amount-a" class="font-bold text-slate-700">¥0</span></span>
+                    </div>
+                </div>
+
+                <!-- 達成率メーター (ヨミA+B+Cベース) -->
+                <div class="space-y-2 flex flex-col justify-center">
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-slate-600 flex items-center space-x-1">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            <span>ヨミ総額(A+B+C) 達成見込</span>
+                        </span>
+                        <span id="achievement-rate-all" class="text-blue-600 text-sm">0.0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                        <div id="achievement-bar-all" class="bg-blue-500 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-slate-400">
+                        <span>総案件(ヨミ)累計: <span id="achieved-amount-all" class="font-bold text-slate-700">¥0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- クイック指標カード -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">有効案件数</span>
+                    <span id="stat-count" class="text-lg md:text-2xl font-bold text-slate-900 mt-1">0 <span class="text-xs font-normal text-slate-500">件</span></span>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">受注高 合計 (円)</span>
+                    <span id="stat-amount" class="text-base md:text-xl font-bold text-slate-900 mt-1">¥0</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">想定粗利 合計 (円)</span>
+                    <span id="stat-profit" class="text-base md:text-xl font-bold text-emerald-600 mt-1">¥0</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">全体平均利益率</span>
+                    <span id="stat-rate" class="text-base md:text-xl font-bold text-blue-600 mt-1">0.0%</span>
+                </div>
+            </div>
+
+            <!-- 確度ランク（A・B・C・他）別 受注金額合計表示 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <h4 class="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center">
+                    <svg class="w-4 h-4 text-indigo-500 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    <span>確度ランク別受注金額サマリー (正確な円)</span>
+                </h4>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                    <div class="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100 border-l-4 border-l-emerald-500 flex flex-col justify-between">
+                        <span class="text-[10px] md:text-xs font-bold text-emerald-700 uppercase tracking-wider">Aランク (契約確定) 合計</span>
+                        <span id="stat-rank-a" class="text-base md:text-xl font-black text-emerald-700 mt-1">¥0</span>
+                    </div>
+                    <div class="bg-blue-50/40 p-4 rounded-xl border border-blue-100 border-l-4 border-l-blue-500 flex flex-col justify-between">
+                        <span class="text-[10px] md:text-xs font-bold text-blue-700 uppercase tracking-wider">Bランク (契約見込) 合計</span>
+                        <span id="stat-rank-b" class="text-base md:text-xl font-black text-blue-700 mt-1">¥0</span>
+                    </div>
+                    <div class="bg-amber-50/40 p-4 rounded-xl border border-amber-100 border-l-4 border-l-amber-500 flex flex-col justify-between">
+                        <span class="text-[10px] md:text-xs font-bold text-amber-700 uppercase tracking-wider">Cランク (引合い) 合計</span>
+                        <span id="stat-rank-c" class="text-base md:text-xl font-black text-amber-700 mt-1">¥0</span>
+                    </div>
+                    <div class="bg-slate-50/40 p-4 rounded-xl border border-slate-200 border-l-4 border-l-slate-500 flex flex-col justify-between">
+                        <span class="text-[10px] md:text-xs font-bold text-slate-600 uppercase tracking-wider">その他ランク 合計</span>
+                        <span id="stat-rank-other" class="text-base md:text-xl font-black text-slate-700 mt-1">¥0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 売上計上月ベース 年間計画・進捗管理表 -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900 flex items-center space-x-2 text-sm md:text-base">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            <span>売上計上計画・進捗小計表 (A/Bランク集計対象)</span>
+                        </h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">※Aランク・Bランク案件のみを月次・四半期・半期・通期累計の合計値に算出します。Cランク・その他案件は表示されますが集計からは除外されます。</p>
+                    </div>
+                    <span class="text-slate-400 text-[10px] font-bold bg-slate-50 px-2 py-1 rounded">表示単位: 正確な円 / 統計内訳: 千円</span>
+                </div>
+
+                <div class="overflow-x-auto safe-scroll">
+                    <table class="w-full text-left text-xs text-slate-500 border-collapse">
+                        <thead class="text-[10px] md:text-xs text-slate-700 uppercase bg-slate-100 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 border-b">計上月</th>
+                                <th class="px-3 py-2 border-b">企業名・案件概要</th>
+                                <th class="px-3 py-2 border-b text-center">確度</th>
+                                <th class="px-3 py-2 border-b text-blue-800 font-bold">受注金額 (円)</th>
+                                <th class="px-3 py-2 border-b text-emerald-800 font-bold">利益額 (円)</th>
+                                <th class="px-3 py-2 border-b text-center">利益率</th>
+                            </tr>
+                        </thead>
+                        <tbody id="progress-plan-tbody">
+                            <!-- JSにて精密レンダリング -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 分析セクション: マップ & 協力業者集計 & 没要因集計 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 地図 -->
+                <div class="lg:col-span-2 bg-white p-4 md:p-5 rounded-xl shadow-sm border border-slate-100 flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-slate-900 flex items-center space-x-2 text-sm md:text-base">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                            <span>現場住所マッププロット (全自動)</span>
+                        </h3>
+                    </div>
+                    <div id="map" class="w-full h-[250px] md:h-[350px] rounded-xl border border-slate-100 bg-slate-100"></div>
+                </div>
+
+                <!-- 協力業者集計 ＆ 没要因分析カード -->
+                <div class="space-y-6 flex flex-col">
+                    <!-- 協力業者発注高一覧 -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex-grow">
+                        <h3 class="font-bold text-slate-900 mb-3 flex items-center space-x-2 text-sm">
+                            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            <span>協力業者別 発注シェア(千円単位)</span>
+                        </h3>
+                        <div id="partner-stats-list" class="space-y-2 overflow-y-auto max-h-[170px] safe-scroll pr-1 text-xs">
+                            <!-- JSにて自動算出 -->
+                        </div>
+                    </div>
+
+                    <!-- 没要因クロス集計分析 -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex-grow">
+                        <h3 class="font-bold text-slate-900 mb-3 flex items-center space-x-2 text-sm">
+                            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            <span>失注・没要因のタグ分析結果</span>
+                        </h3>
+                        <div id="lost-reason-analytics" class="space-y-2 text-xs">
+                            <!-- JS集計表示 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 業態別シェアと企業一覧の並列 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 業態別統計 -->
+                <div class="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-slate-100 flex flex-col col-span-1">
+                    <h3 class="font-bold text-slate-900 mb-3 flex items-center space-x-2 text-sm md:text-base">
+                        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                        <span>業態別統計 (千円単位)</span>
+                    </h3>
+                    <div id="sector-stats-list" class="space-y-2 md:space-y-3 overflow-y-auto max-h-[350px] safe-scroll pr-1">
+                        <!-- 業態動的描画 -->
+                    </div>
+                </div>
+
+                <!-- 企業別集計テーブル (千円単位) -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 col-span-2">
+                    <h3 class="font-bold text-slate-900 mb-4 flex items-center space-x-2 text-sm md:text-base">
+                        <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        <span>企業別実績要約 (千円単位)</span>
+                    </h3>
+                    <div class="overflow-x-auto safe-scroll">
+                        <table class="w-full text-left text-xs md:text-sm text-slate-500">
+                            <thead class="text-[10px] md:text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th class="px-4 py-2 md:px-6 md:py-3">企業名</th>
+                                    <th class="px-4 py-2 md:px-6 md:py-3">受注件数</th>
+                                    <th class="px-4 py-2 md:px-6 md:py-3">受注総高 (千円)</th>
+                                    <th class="px-4 py-2 md:px-6 md:py-3">平均利益率</th>
+                                </tr>
+                            </thead>
+                            <tbody id="client-stats-tbody">
+                                <!-- 企業別スタッツ動的描画 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- レポートPDF出力誘導 -->
+                    <div class="mt-4 pt-4 border-t flex justify-end">
+                        <button onclick="triggerPrint(null)" class="px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition flex items-center space-x-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                            <span>A4横型 経営全体統計レポート印刷 (PDF出力)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI診断コンソール -->
+            <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-5 md:p-6 rounded-2xl shadow-lg border border-slate-800">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 bg-blue-600 rounded-xl text-white shadow-md">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm md:text-base font-bold">ArchAI 目標達成・挑戦型コンサルティング</h3>
+                            <p class="text-[10px] md:text-xs text-slate-400">確度別ランク(ABC)と施工財務を徹底監査。妥協のない打開策を示します。</p>
+                        </div>
+                    </div>
+                    <button id="ai-btn" onclick="triggerAIDiagnosis()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-xs md:text-sm shadow transition flex items-center justify-center space-x-2">
+                        <span>AI戦略診断を実行</span>
+                    </button>
+                </div>
+                <div id="ai-result-panel" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="text-center py-6 col-span-2 text-slate-400 border border-dashed border-slate-800 rounded-xl bg-slate-900/30 text-xs">
+                        「AI戦略診断を実行」をクリックすると、目標に対する現状予測と獲得に向けた妥協なき打開ロードマップが生成されます。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 時系列グラフ（SVGインテリジェント描画） -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 gap-2">
+                    <h3 class="font-bold text-slate-900 flex items-center space-x-2 text-sm md:text-base">
+                        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        <span>月次・四半期・年次データ推移 (千円単位)</span>
+                    </h3>
+                    <div class="flex space-x-1">
+                        <button id="chart-tab-monthly" onclick="renderChart('monthly')" class="px-3 py-1 bg-blue-600 text-white rounded-md text-[10px] font-bold">月次</button>
+                        <button id="chart-tab-quarterly" onclick="renderChart('quarterly')" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-bold">四半期</button>
+                        <button id="chart-tab-yearly" onclick="renderChart('yearly')" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-bold">年次</button>
+                    </div>
+                </div>
+                <!-- グラフ表示領域 -->
+                <div class="h-44 bg-slate-50 rounded-xl border border-slate-100 p-4 flex items-end justify-between relative" id="chart-container">
+                    <!-- JSで描画 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- B. 案件一覧（案件管理）タブ -->
+        <section id="tab-content-projects" class="space-y-4 hidden">
+            <!-- フィルター & 新規ボタン -->
+            <div class="bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-3">
+                <div class="flex flex-col md:flex-row gap-2 flex-grow">
+                    <input type="text" id="filter-search" oninput="applyFilters()" placeholder="企業名、案件、現場、協力業者..." class="px-4 py-2 border rounded-xl text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow" />
+                    <select id="filter-sector" onchange="applyFilters()" class="px-3 py-2 border rounded-xl text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="all">すべての業態</option>
+                    </select>
+                    <!-- 確度ランク個別フィルター -->
+                    <select id="filter-rank" onchange="applyFilters()" class="px-3 py-2 border rounded-xl text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-slate-700">
+                        <option value="all">すべての確度ランク</option>
+                        <option value="A">Aランクのみ</option>
+                        <option value="B">Bランクのみ</option>
+                        <option value="C">Cランクのみ</option>
+                        <option value="Other">その他ランクのみ</option>
+                    </select>
+                </div>
+                <button onclick="openFormModal('create')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs md:text-sm font-bold flex items-center justify-center space-x-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                    <span>新規案件登録</span>
+                </button>
+            </div>
+
+            <!-- リスト＆詳細 (超コンパクト・等幅設計・シングルカラム仕様) -->
+            <div class="w-full">
+                <!-- 案件リスト -->
+                <div id="project-list-container" class="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden max-h-[70vh]">
+                    <div id="project-list" class="overflow-y-auto divide-y divide-slate-100 safe-scroll flex-grow">
+                        <!-- 動的に流し込み -->
+                    </div>
+                </div>
+
+                <!-- 案件詳細 -->
+                <div id="project-detail-panel" class="hidden">
+                    <!-- 詳細パネル -->
+                </div>
+            </div>
+        </section>
+
+        <!-- C. 没案件タブ -->
+        <section id="tab-content-archive" class="space-y-4 hidden">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <h3 class="font-bold text-slate-900 flex items-center space-x-2 text-sm md:text-base">
+                    <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                    <span>没案件（失注フォルダ・バックアップ）</span>
+                </h3>
+                <p class="text-[10px] md:text-xs text-slate-400 mt-1">競合不成立、あるいは計画中止となった過去案件を保存しています。いつでも復帰やコピー複製が可能です。</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="overflow-x-auto safe-scroll">
+                    <table class="w-full text-left text-xs md:text-sm text-slate-500">
+                        <thead class="text-[10px] md:text-xs text-slate-700 bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3">企業名</th>
+                                <th class="px-4 py-3">案件名</th>
+                                <th class="px-4 py-3">業態 / 工事 / 確度</th>
+                                <th class="px-4 py-3">金額 (円)</th>
+                                <th class="px-4 py-3 text-right">復帰 / 複製 / 削除</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archive-table-body">
+                            <!-- 没案件一覧の動的出力 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 5. 印刷プレビューモード (印刷時にのみ展開、PC/Mobile共通) -->
+    <section id="tab-content-print" class="hidden min-h-screen bg-slate-800 py-6 px-4 flex flex-col items-center">
+        <div class="mb-4 text-white text-xs flex items-center space-x-2 no-print">
+            <span>A4横型 印刷プレビュー画面</span>
+            <button onclick="window.print()" class="px-3 py-1.5 bg-blue-600 rounded font-bold">印刷ダイアログを開く</button>
+            <button onclick="exitPrint()" class="px-3 py-1.5 bg-slate-700 rounded font-bold">戻る</button>
+        </div>
+        <div id="print-sheet" class="bg-white shadow-2xl p-8 border border-slate-300 print-container" style="width: 297mm; min-height: 210mm;">
+            <!-- 印刷用レポートのHTMLが動的に描画 -->
+        </div>
+    </section>
+
+    <!-- 6. 編集・登録モーダル (全画面表示、iOSタッチスクロール可能) -->
+    <div id="form-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-2xl w-full flex flex-col overflow-hidden shadow-2xl border border-slate-100 max-h-[95vh]">
+            <div class="px-5 py-3 md:py-4 bg-slate-50 border-b flex justify-between items-center">
+                <h3 id="form-modal-title" class="font-bold text-slate-900 text-sm md:text-base">新規案件の登録</h3>
+                <button onclick="closeFormModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <form id="project-form" onsubmit="saveProject(event)" class="p-4 md:p-6 overflow-y-auto safe-scroll space-y-3 md:space-y-4 text-xs md:text-sm">
+                <input type="hidden" id="form-id" />
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">企業名 <span class="text-rose-500">*</span></label>
+                        <input type="text" id="form-clientName" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" placeholder="例: 株式会社ABC" />
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">案件名 <span class="text-rose-500">*</span></label>
+                        <input type="text" id="form-projectName" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" placeholder="例: 渋谷新店改装" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">業態</label>
+                        <select id="form-sector" class="w-full p-2 border rounded-lg bg-white text-xs md:text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">工事種別</label>
+                        <select id="form-workType" class="w-full p-2 border rounded-lg bg-white text-xs md:text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">構造</label>
+                        <select id="form-structure" class="w-full p-2 border rounded-lg bg-white text-xs md:text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">確度ランク <span class="text-rose-500">*</span></label>
+                        <select id="form-rank" required class="w-full p-2 border rounded-lg bg-white text-xs md:text-sm font-bold text-blue-600">
+                            <option value="A">Aランク (契約済み)</option>
+                            <option value="B">Bランク (契約見込み)</option>
+                            <option value="C">Cランク (引合い)</option>
+                            <option value="Other">その他ランク</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">現場住所</label>
+                        <input type="text" id="form-address" class="w-full p-2 border rounded-lg text-xs md:text-sm" placeholder="例: 東京都港区..." />
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">契約状況 <span class="text-rose-500">*</span></label>
+                        <select id="form-contractStatus" required class="w-full p-2 border rounded-lg bg-white text-xs md:text-sm font-bold text-slate-700">
+                            <option value="設計契約済">設計契約済</option>
+                            <option value="請負契約済">請負契約済</option>
+                            <option value="設計請負契約済">設計請負契約済</option>
+                            <option value="注文書">注文書</option>
+                            <option value="未締結" class="text-rose-600 font-bold">未締結</option>
+                            <option value="その他">その他</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">受注金額 (円) <span class="text-rose-500">*</span></label>
+                        <input type="number" id="form-amount" required class="w-full p-2 border rounded-lg text-xs md:text-sm" placeholder="金額を半角数字で入力" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">想定利益率 (%) <span class="text-rose-500">*</span></label>
+                            <input type="number" id="form-profitRate" required min="0" max="100" step="0.1" class="w-full p-2 border rounded-lg text-xs md:text-sm" placeholder="例: 25" />
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">売上計上月 <span class="text-rose-500">*</span></label>
+                            <input type="month" id="form-billingMonth" required class="w-full p-2 border rounded-lg text-xs md:text-sm font-semibold" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">着手日</label>
+                        <input type="date" id="form-initiationDate" class="w-full p-2 border rounded-lg text-xs md:text-sm" />
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">着工予定日</label>
+                        <input type="date" id="form-startDate" class="w-full p-2 border rounded-lg text-xs md:text-sm" />
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">引渡予定日</label>
+                        <input type="date" id="form-endDate" class="w-full p-2 border rounded-lg text-xs md:text-sm" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-600 mb-1">協力業者名</label>
+                    <input type="text" id="form-partner" class="w-full p-2 border rounded-lg text-xs md:text-sm" placeholder="例: 相模設備、吉川電気" />
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-600 mb-1">備考欄</label>
+                    <textarea id="form-notes" rows="3" class="w-full p-2 border rounded-lg text-xs md:text-sm" placeholder="追加要望、仕様条件など..."></textarea>
+                </div>
+
+                <div class="pt-4 border-t flex justify-end space-x-2">
+                    <button type="button" onclick="closeFormModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold">キャンセル</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">保存する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ==============================================
+         高速駆動 JS ロジック (Vanilla JS仕様)
+         ============================================== -->
+    <script>
+        // --- 1. 定数・初期モックデータ ---
+        const SECTORS = ["飲食", "物販", "幼保", "福祉", "自動車", "医療", "サービス", "オフィス", "その他"];
+        const WORK_TYPES = ["新築工事", "新装工事", "増改築工事", "改装工事", "雑工事", "その他"];
+        const STRUCTURES = ["木造", "鉄骨造", "RC造", "その他"];
+
+        // 確度ランク表記マッピング
+        const RANKS = {
+            "A": { label: "A (契約確定)", color: "bg-emerald-500 text-white border-emerald-600" },
+            "B": { label: "B (契約見込)", color: "bg-blue-500 text-white border-blue-600" },
+            "C": { label: "C (引合い)", color: "bg-amber-500 text-white border-amber-600" },
+            "Other": { label: "その他", color: "bg-slate-500 text-white border-slate-600" }
+        };
+
+        const defaultProjects = [
+            { id: "p1", clientName: "フーズプラザ株式会社", projectName: "恵比寿 イタリアン新装工事", sector: "飲食", address: "東京都渋谷区恵比寿南1-5-5", workType: "新装工事", structure: "RC造", amount: 35000000, profitRate: 25, startDate: "2026-01-10", endDate: "2026-02-25", notes: "厨房設備のレイアウト変更、配管改修を含む。夜間工事制限あり。", partner: "東洋厨房システム、丸の内電気工事", status: "active", rank: "A", billingMonth: "2026-02", initiationDate: "2025-12-25", contractStatus: "設計請負契約済" },
+            { id: "p2", clientName: "アパレルネクスト", projectName: "原宿セレクトショップ増改築", sector: "物販", address: "東京都渋谷区神宮前4-25-12", workType: "増改築工事", structure: "鉄骨造", amount: 48000000, profitRate: 18, startDate: "2026-02-15", endDate: "2026-04-10", notes: "1F店舗の拡大と、2Fオフィスの増築工事。", partner: "ヤマダ鋼業、サトウガラス", status: "active", rank: "B", billingMonth: "2026-04", initiationDate: "2026-02-01", contractStatus: "未締結" },
+            { id: "p3", clientName: "大空キッズ", projectName: "横浜みなとみらい保育園新築", sector: "幼保", address: "神奈川県横浜市西区みなとみらい3-6-1", workType: "新築工事", structure: "木造", amount: 120000000, profitRate: 12, startDate: "2025-10-01", endDate: "2026-03-15", notes: "木造準耐火構造。", partner: "相模ウッドテック、神奈川建設資材", status: "active", rank: "A", billingMonth: "2026-03", initiationDate: "2025-09-01", contractStatus: "請負契約済" },
+            { id: "p4", clientName: "医療法人きらら", projectName: "杉並内科クリニック改装工事", sector: "医療", address: "東京都杉並区荻窪5-20-8", workType: "改装工事", structure: "RC造", amount: 18000000, profitRate: 22, startDate: "2026-03-01", endDate: "2026-03-25", notes: "待合室のバリアフリー化と、発熱外来用ブースの新設。", partner: "サニタリーエンジニアリング、タカハシ内装", status: "active", rank: "A", billingMonth: "2026-03", initiationDate: "2026-02-10", contractStatus: "注文書" },
+            { id: "p5", clientName: "フードスターズ", projectName: "新宿居酒屋改装（見積不成立）", sector: "飲食", address: "東京都新宿区歌舞伎町1-10-1", workType: "改装工事", structure: "RC造", amount: 15000000, profitRate: 20, startDate: "2025-11-01", endDate: "2025-11-15", notes: "予算超越のため合意に至らず。コンペ他社決定。", partner: "未定", status: "archived", rank: "C", billingMonth: "2025-11", initiationDate: "2025-10-15", contractStatus: "未締結", lostReasonTag: "価格競合（競合負け）", lostReasonNotes: "競合他社より約15%低い見積提示があり合意に至らず。" }
+        ];
+
+        // 状態管理
+        let projects = [];
+        let activeTab = "dashboard";
+        let activeChartType = "monthly";
+        let selectedProjectId = null;
+        let confirmCallback = null;
+        let targetAmount = 250000000; // デフォルト個人年間目標額 (2億5千万円)
+        let lostProjectPendingId = null; // 没要因記入中の一時退避ID
+
+        // 地図
+        let mapInstance = null;
+        let mapMarkers = [];
+
+        // 疑似ジオコーダー
+        function getCoords(address) {
+            let hash = 0;
+            for (let i = 0; i < address.length; i++) {
+                hash = address.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const lat = 35.6895 + (hash % 120) * 0.0012;
+            const lng = 139.6917 + ((hash >> 3) % 120) * 0.0014;
+            return [lat, lng];
+        }
+
+        // 千円単位に変換するヘルパー
+        function toThousandYenStr(amount) {
+            return Math.round(amount / 1000).toLocaleString() + "千円";
+        }
+
+        // --- 2. 起動初期化処理 ---
+        window.onload = function() {
+            // ローカルストレージ復元
+            const stored = localStorage.getItem("arch_sfa_projects");
+            if (stored) {
+                projects = JSON.parse(stored);
+            } else {
+                projects = defaultProjects;
+                localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+            }
+
+            // 目標額の復元
+            const storedTarget = localStorage.getItem("arch_sfa_target_amount");
+            if (storedTarget) {
+                targetAmount = parseFloat(storedTarget) || 250000000;
+            }
+            document.getElementById('target-amount-input').value = targetAmount;
+            document.getElementById('target-amount-display').textContent = `¥${targetAmount.toLocaleString()}`;
+
+            // セレクトボックスのオプション生成
+            populateSelectors();
+            
+            // 画面の再描画
+            refreshAll();
+
+            // 最初の地図初期化
+            initMap();
+        };
+
+        // 目標金額更新処理
+        function updateTargetAmount() {
+            const inputVal = parseFloat(document.getElementById('target-amount-input').value);
+            if (!isNaN(inputVal) && inputVal > 0) {
+                targetAmount = inputVal;
+                localStorage.setItem("arch_sfa_target_amount", targetAmount.toString());
+                document.getElementById('target-amount-display').textContent = `¥${targetAmount.toLocaleString()}`;
+                refreshAll();
+            }
+        }
+
+        // タブ切り替え
+        function switchTab(tabName) {
+            activeTab = tabName;
+            
+            document.getElementById('tab-content-print').classList.add('hidden');
+            document.querySelector('main').classList.remove('hidden');
+            document.querySelector('header').classList.remove('hidden');
+
+            ['dashboard', 'projects', 'archive'].forEach(t => {
+                const el = document.getElementById(`tab-content-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (t === tabName) {
+                    el.classList.remove('hidden');
+                    btn.classList.add('bg-blue-600', 'text-white');
+                    btn.classList.remove('text-slate-300', 'hover:bg-brand-700');
+                } else {
+                    el.classList.add('hidden');
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('text-slate-300', 'hover:bg-brand-700');
+                }
+            });
+
+            // 案件管理タブを開くときは常に一覧リスト表示に戻す
+            if (tabName === 'projects') {
+                backToList();
+            }
+
+            if (tabName === 'dashboard') {
+                setTimeout(initMap, 100);
+            }
+            
+            refreshAll();
+        }
+
+        // --- 3. データ処理・描画 ---
+        function refreshAll() {
+            const activeProjects = projects.filter(p => p.status === 'active');
+            const archivedProjects = projects.filter(p => p.status === 'archived');
+
+            // バッジ更新
+            document.getElementById('active-count-badge').textContent = activeProjects.length;
+            document.getElementById('archive-count-badge').textContent = archivedProjects.length;
+
+            // 統計データの算出
+            let totalAmount = 0;
+            let totalProfit = 0;
+            let confirmedAmountA = 0; // 契約確定 Aランク総額
+
+            // 確度ランク別合計の計算
+            let totalRankA = 0;
+            let totalRankB = 0;
+            let totalRankC = 0;
+            let totalRankOther = 0;
+
+            const sectorStats = {};
+            const clientStats = {};
+            
+            // 【新規】協力業者別の売上額・件数の集計用
+            const partnerStats = {};
+
+            SECTORS.forEach(s => sectorStats[s] = { count: 0, amount: 0, profit: 0 });
+
+            activeProjects.forEach(p => {
+                const amount = p.amount || 0;
+                const profit = Math.round(amount * (p.profitRate / 100)) || 0;
+                totalAmount += amount;
+                totalProfit += profit;
+
+                if (p.rank === 'A') {
+                    confirmedAmountA += amount;
+                    totalRankA += amount;
+                } else if (p.rank === 'B') {
+                    totalRankB += amount;
+                } else if (p.rank === 'C') {
+                    totalRankC += amount;
+                } else {
+                    totalRankOther += amount;
+                }
+
+                if (sectorStats[p.sector]) {
+                    sectorStats[p.sector].count++;
+                    sectorStats[p.sector].amount += amount;
+                    sectorStats[p.sector].profit += profit;
+                }
+
+                if (!clientStats[p.clientName]) {
+                    clientStats[p.clientName] = { count: 0, amount: 0, profit: 0 };
+                }
+                clientStats[p.clientName].count++;
+                clientStats[p.clientName].amount += amount;
+                clientStats[p.clientName].profit += profit;
+
+                // 【新規】協力業者のクロス集計ロジック
+                if (p.partner) {
+                    // カンマ区切りなどで複数業者を入力しているケースをケア
+                    const partners = p.partner.split(/[、,]/).map(x => x.trim()).filter(x => x);
+                    partners.forEach(partnerName => {
+                        if (!partnerStats[partnerName]) {
+                            partnerStats[partnerName] = { count: 0, amount: 0 };
+                        }
+                        partnerStats[partnerName].count++;
+                        partnerStats[partnerName].amount += amount;
+                    });
+                }
+            });
+
+            const avgRate = totalAmount > 0 ? (totalProfit / totalAmount) * 100 : 0;
+
+            // 達成度進捗インジケーターの更新
+            const rateA = targetAmount > 0 ? (confirmedAmountA / targetAmount) * 100 : 0;
+            const rateAll = targetAmount > 0 ? (totalAmount / targetAmount) * 100 : 0;
+
+            document.getElementById('achievement-rate-a').textContent = `${rateA.toFixed(1)}%`;
+            document.getElementById('achievement-bar-a').style.width = `${Math.min(rateA, 100)}%`;
+            document.getElementById('achieved-amount-a').textContent = `¥${confirmedAmountA.toLocaleString()}`;
+
+            document.getElementById('achievement-rate-all').textContent = `${rateAll.toFixed(1)}%`;
+            document.getElementById('achievement-bar-all').style.width = `${Math.min(rateAll, 100)}%`;
+            document.getElementById('achieved-amount-all').textContent = `¥${totalAmount.toLocaleString()}`;
+
+            // ダッシュボード数値の埋め込み (正確なフル桁表示)
+            document.getElementById('stat-count').innerHTML = `${activeProjects.length} <span class="text-xs font-normal text-slate-500">件</span>`;
+            document.getElementById('stat-amount').textContent = `¥${totalAmount.toLocaleString()}`;
+            document.getElementById('stat-profit').textContent = `¥${totalProfit.toLocaleString()}`;
+            document.getElementById('stat-rate').textContent = `${avgRate.toFixed(1)}%`;
+
+            // 確度ランク別 受注金額合計反映
+            document.getElementById('stat-rank-a').textContent = `¥${totalRankA.toLocaleString()}`;
+            document.getElementById('stat-rank-b').textContent = `¥${totalRankB.toLocaleString()}`;
+            document.getElementById('stat-rank-c').textContent = `¥${totalRankC.toLocaleString()}`;
+            document.getElementById('stat-rank-other').textContent = `¥${totalRankOther.toLocaleString()}`;
+
+            // 業態別描画 (千円単位表示)
+            let sectorHTML = "";
+            SECTORS.forEach(sec => {
+                const data = sectorStats[sec];
+                const share = totalAmount > 0 ? (data.amount / totalAmount) * 100 : 0;
+                const pRate = data.amount > 0 ? (data.profit / data.amount) * 100 : 0;
+                sectorHTML += `
+                    <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <div class="flex justify-between items-center mb-1 text-xs">
+                            <span class="font-bold text-slate-800 flex items-center">
+                                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-1.5"></span>
+                                ${sec} (${data.count}件)
+                            </span>
+                            <span class="text-slate-500">${share.toFixed(1)}%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-1">
+                            <div class="bg-blue-600 h-1 rounded-full" style="width: ${share}%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <span>受注高: ${toThousandYenStr(data.amount)}</span>
+                            <span class="${pRate >= 20 ? 'text-emerald-600 font-bold' : ''}">利益率: ${pRate.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('sector-stats-list').innerHTML = sectorHTML;
+
+            // 企業別一覧描画 (千円単位表示)
+            let clientHTML = "";
+            if (Object.keys(clientStats).length === 0) {
+                clientHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-slate-400">データがありません</td></tr>`;
+            } else {
+                Object.entries(clientStats).forEach(([client, d]) => {
+                    const cRate = d.amount > 0 ? (d.profit / d.amount) * 100 : 0;
+                    clientHTML += `
+                        <tr class="border-b border-slate-100 hover:bg-slate-50">
+                            <td class="px-4 py-2.5 font-bold text-slate-900">${client}</td>
+                            <td class="px-4 py-2.5">${d.count} 件</td>
+                            <td class="px-4 py-2.5 font-semibold text-slate-800">${toThousandYenStr(d.amount)}</td>
+                            <td class="px-4 py-2.5">
+                                <span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold ${cRate >= 20 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
+                                    ${cRate.toFixed(1)}%
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            document.getElementById('client-stats-tbody').innerHTML = clientHTML;
+
+            // 【新規】協力業者別発注シェアの集計描画 (ダッシュボード用)
+            let partnerHTML = "";
+            const sortedPartners = Object.entries(partnerStats).sort((a,b) => b[1].amount - a[1].amount);
+            if (sortedPartners.length === 0) {
+                partnerHTML = `<div class="p-4 text-center text-slate-400">協力業者データなし</div>`;
+            } else {
+                sortedPartners.forEach(([pName, pVal]) => {
+                    partnerHTML += `
+                        <div class="flex justify-between items-center border-b border-slate-100 py-1.5">
+                            <span class="font-bold text-slate-700 truncate max-w-[120px]">${pName}</span>
+                            <span class="text-slate-500 font-semibold">${pVal.count}件 / ${toThousandYenStr(pVal.amount)}</span>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('partner-stats-list').innerHTML = partnerHTML;
+
+            // 【新規】没（失注）要因タグ自動分析の集計描画
+            renderLostReasonAnalytics(archivedProjects);
+
+            // 【新規】要注意アラート・リマインダー監視
+            renderAlertReminder(activeProjects);
+
+            // 精密な売上計上小計表の生成 (A/Bランクのみ合計集計)
+            renderProgressPlanTable(activeProjects);
+
+            // 各種グラフ、リストを更新
+            renderChart(activeChartType);
+            applyFilters();
+            renderArchiveTable();
+        }
+
+        // --- 3.1 【新規】要注意アラート・リマインダー監視ロジック ---
+        function renderAlertReminder(activeProjects) {
+            const container = document.getElementById('alert-reminder-section');
+            container.innerHTML = "";
+
+            const warnings = [];
+
+            // 1. 契約状況が「未締結」の案件
+            const uncontracted = activeProjects.filter(p => p.contractStatus === "未締結");
+            // 2. 引渡日が差し迫っているのに「未締結」のもの (例: 30日以内)
+            const today = new Date();
+            const dangerLimitDate = new Date();
+            dangerLimitDate.setDate(today.getDate() + 30);
+
+            const urgentUncontracted = activeProjects.filter(p => {
+                if (p.contractStatus !== "未締結" || !p.endDate) return false;
+                const end = new Date(p.endDate);
+                return end <= dangerLimitDate;
+            });
+
+            if (uncontracted.length > 0) {
+                warnings.push(`
+                    <div class="flex items-center space-x-2 text-rose-700 font-bold bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                        <span class="animate-ping w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
+                        <span>🚨 契約状況【未締結】の案件が現在 <span class="text-sm underline">${uncontracted.length}件</span> 存在します。速やかに契約書または注文書の取り交わしを推進してください。</span>
+                    </div>
+                `);
+            }
+
+            if (urgentUncontracted.length > 0) {
+                warnings.push(`
+                    <div class="flex items-center space-x-2 text-red-800 font-black bg-red-100 p-2.5 rounded-lg border border-red-300">
+                        <span class="animate-bounce text-base">⚠️</span>
+                        <span>【最重要】引渡予定まで1ヶ月を切っている未締結の請負工事（${urgentUncontracted.map(p=>p.projectName).join('、')}）があります。施工リスクヘッジのため、即時営業の打開策を適用してください。</span>
+                    </div>
+                `);
+            }
+
+            if (warnings.length > 0) {
+                container.innerHTML = `
+                    <div class="bg-white p-4 rounded-xl border border-rose-100 shadow-sm space-y-2">
+                        <h4 class="text-xs font-black text-rose-700 tracking-wider flex items-center">
+                            <span class="mr-1">⚡</span>インテリジェント要注意アラート・アラーム
+                        </h4>
+                        ${warnings.join('')}
+                    </div>
+                `;
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        // --- 3.2 【新規】没（失注）要因タグ自動分析の集計描画 ---
+        function renderLostReasonAnalytics(archivedProjects) {
+            const container = document.getElementById('lost-reason-analytics');
+            if (archivedProjects.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-slate-400">没データがないため、失注要因はありません</div>`;
+                return;
+            }
+
+            const reasonCounts = {};
+            archivedProjects.forEach(p => {
+                const tag = p.lostReasonTag || "要因記載なし";
+                reasonCounts[tag] = (reasonCounts[tag] || 0) + 1;
+            });
+
+            let html = '<div class="space-y-2">';
+            Object.entries(reasonCounts).forEach(([tag, count]) => {
+                const percentage = (count / archivedProjects.length) * 100;
+                html += `
+                    <div>
+                        <div class="flex justify-between items-center text-[11px] mb-1">
+                            <span class="font-bold text-slate-700">${tag}</span>
+                            <span class="text-slate-500">${count}件 (${percentage.toFixed(0)}%)</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-2">
+                            <div class="bg-amber-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // --- 3.5 精密売上計上計画・進捗表レンダリング (計上月・金額・利益率を強調表示 / A・Bランクのみ加算) ---
+        function renderProgressPlanTable(activeProjects) {
+            const tbody = document.getElementById('progress-plan-tbody');
+            
+            // 年間（1月〜12月）のカレンダー枠を用意
+            const currentYear = new Date().getFullYear();
+            const monthsData = Array.from({ length: 12 }, (_, i) => {
+                const monthStr = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
+                return {
+                    monthStr: monthStr,
+                    label: `${i + 1}月`,
+                    monthNum: i + 1,
+                    projects: []
+                };
+            });
+
+            // 案件を該当月に振り分け
+            activeProjects.forEach(p => {
+                if (p.billingMonth) {
+                    const monthObj = monthsData.find(m => m.monthStr === p.billingMonth);
+                    if (monthObj) {
+                        monthObj.projects.push(p);
+                    }
+                }
+            });
+
+            // 各月の案件を確度順にソート (A -> B -> C -> Other)
+            const rankPriority = { "A": 1, "B": 2, "C": 3, "Other": 4 };
+            monthsData.forEach(m => {
+                m.projects.sort((a, b) => {
+                    const priorityA = rankPriority[a.rank] || 99;
+                    const priorityB = rankPriority[b.rank] || 99;
+                    return priorityA - priorityB;
+                });
+            });
+
+            let tableHTML = "";
+            let grandTotalAmount = 0;
+            let grandTotalProfit = 0;
+
+            // 各半期の小計用
+            let firstHalfAmount = 0;
+            let firstHalfProfit = 0;
+            let secondHalfAmount = 0;
+            let secondHalfProfit = 0;
+
+            // 各四半期の小計用
+            let qAmounts = [0, 0, 0, 0];
+            let qProfits = [0, 0, 0, 0];
+
+            monthsData.forEach((m, idx) => {
+                const monthNum = m.monthNum;
+                const qIdx = Math.floor((monthNum - 1) / 3); // 0=Q1(1-3), 1=Q2(4-6), 2=Q3(7-9), 3=Q4(10-12)
+
+                let monthTotalAmount = 0;
+                let monthTotalProfit = 0;
+
+                if (m.projects.length === 0) {
+                    // 案件なし
+                    tableHTML += `
+                        <tr class="border-b text-slate-400 bg-slate-50/30 text-center">
+                            <td class="px-3 py-2.5 font-bold text-slate-500">${m.label}</td>
+                            <td class="px-3 py-2.5 text-[10px] text-slate-400 text-left" colspan="2">売上計上予定案件なし</td>
+                            <td class="px-3 py-2.5 text-left">¥0</td>
+                            <td class="px-3 py-2.5 text-left">¥0</td>
+                            <td class="px-3 py-2.5 text-center text-slate-400">-</td>
+                        </tr>
+                    `;
+                } else {
+                    m.projects.forEach((p, pIdx) => {
+                        const pAmount = p.amount || 0;
+                        const pProfit = Math.round(pAmount * (p.profitRate / 100));
+
+                        // AまたはBランクのみ月計・小計・累計に加算 (Cおよび他は除外)
+                        const isCounted = (p.rank === 'A' || p.rank === 'B');
+                        if (isCounted) {
+                            monthTotalAmount += pAmount;
+                            monthTotalProfit += pProfit;
+                        }
+
+                        const rankBadge = RANKS[p.rank] || { label: p.rank, color: "bg-slate-300 text-slate-800" };
+
+                        tableHTML += `
+                            <tr class="border-b hover:bg-slate-50 transition duration-150">
+                                <!-- 計上月の見やすいバッジ表示 -->
+                                <td class="px-3 py-3 font-bold text-slate-800">
+                                    ${pIdx === 0 ? `<span class="inline-block bg-brand-800 text-white px-2 py-1 rounded text-[11px] font-black">${m.label} 計上</span>` : ""}
+                                </td>
+                                <td class="px-3 py-3">
+                                    <div class="font-bold text-slate-900 text-xs md:text-sm">${p.projectName}</div>
+                                    <div class="text-[10px] text-slate-500 flex items-center space-x-2 mt-0.5">
+                                        <span>施主: ${p.clientName}</span>
+                                        <span class="text-slate-300">|</span>
+                                        <span class="text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded text-[9px]">${p.billingMonth.replace('-', '/')} 確約月</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3 text-center">
+                                    <span class="inline-block px-2 py-1 text-[10px] font-bold rounded shadow-sm ${rankBadge.color}">${rankBadge.label}</span>
+                                </td>
+                                <!-- 受注金額 (集計対象外のC・Otherランクは薄いグレー表示に切り替え) -->
+                                <td class="px-3 py-3 font-extrabold ${isCounted ? 'text-blue-600' : 'text-slate-400 font-normal'} text-xs md:text-sm">
+                                    ¥${pAmount.toLocaleString()}
+                                    ${isCounted ? '' : '<span class="text-[9px] text-slate-400 block font-normal">(集計対象外)</span>'}
+                                </td>
+                                <!-- 利益額 -->
+                                <td class="px-3 py-3 ${isCounted ? 'text-emerald-600 font-bold' : 'text-slate-400 font-normal'} text-xs md:text-sm">
+                                    ¥${pProfit.toLocaleString()}
+                                </td>
+                                <!-- 利益率 -->
+                                <td class="px-3 py-3 text-center">
+                                    <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${isCounted ? (p.profitRate >= 20 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700') : 'bg-slate-50 text-slate-400'}">
+                                        ${p.profitRate.toFixed(1)}%
+                                    </span>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    // 月計行の追加
+                    tableHTML += `
+                        <tr class="bg-blue-50/30 border-b text-[10px] md:text-xs font-bold text-slate-800">
+                            <td class="px-3 py-2" colspan="3">📊 ${m.label} 月次総計 (A/Bランクのみ)</td>
+                            <td class="px-3 py-2 text-blue-700 font-black">¥${monthTotalAmount.toLocaleString()}</td>
+                            <td class="px-3 py-2 text-emerald-700 font-bold">¥${monthTotalProfit.toLocaleString()}</td>
+                            <td class="px-3 py-2 text-center">
+                                <span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">${monthTotalAmount > 0 ? Math.round((monthTotalProfit/monthTotalAmount)*100) : 0}%</span>
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // 累計蓄積 (A/Bランクのみの月次計が流れて累加算)
+                grandTotalAmount += monthTotalAmount;
+                grandTotalProfit += monthTotalProfit;
+                qAmounts[qIdx] += monthTotalAmount;
+                qProfits[qIdx] += monthTotalProfit;
+
+                if (monthNum <= 6) {
+                    firstHalfAmount += monthTotalAmount;
+                    firstHalfProfit += monthTotalProfit;
+                } else {
+                    secondHalfAmount += monthTotalAmount;
+                    secondHalfProfit += monthTotalProfit;
+                }
+
+                // 四半期小計 (3月, 6月, 9月, 12月締め)
+                if (monthNum % 3 === 0) {
+                    const qName = `第${monthNum/3}四半期 (Q${monthNum/3})`;
+                    const qAmt = qAmounts[qIdx];
+                    const qPrf = qProfits[qIdx];
+                    const qRate = qAmt > 0 ? Math.round((qPrf / qAmt) * 100) : 0;
+
+                    tableHTML += `
+                        <tr class="bg-slate-200/80 border-b text-[11px] md:text-xs font-bold text-slate-900 shadow-inner">
+                            <td class="px-3 py-2.5" colspan="3">📊 ${qName} 合計 (A/Bランクのみ)</td>
+                            <td class="px-3 py-2.5 text-blue-900 font-extrabold">¥${qAmt.toLocaleString()}</td>
+                            <td class="px-3 py-2.5 text-emerald-900 font-bold">¥${qPrf.toLocaleString()}</td>
+                            <td class="px-3 py-2.5 text-center">
+                                <span class="bg-slate-700 text-white px-2 py-0.5 rounded">${qRate}%</span>
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // 半期小計
+                if (monthNum === 6) {
+                    const rate = firstHalfAmount > 0 ? Math.round((firstHalfProfit / firstHalfAmount) * 100) : 0;
+                    tableHTML += `
+                        <tr class="bg-indigo-50 border-b text-xs font-black text-indigo-900">
+                            <td class="px-3 py-3" colspan="3">🏢 上期 総合小計 (1月〜6月) (A/Bランクのみ)</td>
+                            <td class="px-3 py-3 text-blue-800">¥${firstHalfAmount.toLocaleString()}</td>
+                            <td class="px-3 py-3 text-emerald-800">¥${firstHalfProfit.toLocaleString()}</td>
+                            <td class="px-3 py-3 text-center">
+                                <span class="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full">${rate}%</span>
+                            </td>
+                        </tr>
+                    `;
+                } else if (monthNum === 12) {
+                    const rate = secondHalfAmount > 0 ? Math.round((secondHalfProfit / secondHalfAmount) * 100) : 0;
+                    tableHTML += `
+                        <tr class="bg-indigo-50 border-b text-xs font-black text-indigo-900">
+                            <td class="px-3 py-3" colspan="3">🏢 下期 総合小計 (7月〜12月) (A/Bランクのみ)</td>
+                            <td class="px-3 py-3 text-blue-800">¥${secondHalfAmount.toLocaleString()}</td>
+                            <td class="px-3 py-3 text-emerald-800">¥${secondHalfProfit.toLocaleString()}</td>
+                            <td class="px-3 py-3 text-center">
+                                <span class="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full">${rate}%</span>
+                            </td>
+                        </tr>
+                    `;
+                }
+            });
+
+            // 年間累計総合合計の描画
+            const grandRate = grandTotalAmount > 0 ? Math.round((grandTotalProfit / grandTotalAmount) * 100) : 0;
+            tableHTML += `
+                <tr class="bg-brand-900 text-white text-xs md:text-sm font-black">
+                    <td class="px-3 py-3 rounded-bl-xl" colspan="3">🎯 通期 累計総合合計 (12ヶ月) (A/Bランクのみ)</td>
+                    <td class="px-3 py-3 text-blue-300">¥${grandTotalAmount.toLocaleString()}</td>
+                    <td class="px-3 py-3 text-emerald-400">¥${grandTotalProfit.toLocaleString()}</td>
+                    <td class="px-3 py-3 text-center rounded-br-xl">
+                        <span class="bg-emerald-500 text-white px-3 py-1 rounded-md text-[11px]">${grandRate}%</span>
+                    </td>
+                </tr>
+            `;
+
+            tbody.innerHTML = tableHTML;
+        }
+
+        // --- 4. 地図実装（Leaflet） ---
+        function initMap() {
+            if (activeTab !== "dashboard") return;
+            const mapContainer = document.getElementById('map');
+            if (!mapContainer) return;
+
+            if (mapInstance) {
+                mapInstance.remove();
+                mapInstance = null;
+            }
+
+            try {
+                mapInstance = L.map('map', {
+                    zoomControl: true,
+                    dragging: !L.Browser.mobile,
+                    tap: false
+                }).setView([35.6895, 139.6917], 10);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap'
+                }).addTo(mapInstance);
+
+                mapMarkers = [];
+                const activeProjects = projects.filter(p => p.status === 'active' && p.address);
+                
+                activeProjects.forEach(p => {
+                    const coords = getCoords(p.address);
+                    const marker = L.marker(coords).addTo(mapInstance);
+                    const rankBadge = RANKS[p.rank] || { label: p.rank };
+                    const popupContent = `
+                        <div style="font-size: 11px; line-height:1.4;">
+                            <span style="display:inline-block; padding: 1px 4px; background: #2563eb; color:white; border-radius:3px; font-weight:bold; font-size:9px; margin-bottom:4px;">${rankBadge.label}</span>
+                            <strong style="color: #1d4ed8; display:block;">${p.sector} | ${p.projectName}</strong>
+                            <span style="color: #64748b;">${p.clientName}</span><br/>
+                            <span>受注金額: ¥${p.amount.toLocaleString()}</span>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    mapMarkers.push(marker);
+                });
+
+                if (mapMarkers.length > 0) {
+                    const group = new L.featureGroup(mapMarkers);
+                    mapInstance.fitBounds(group.getBounds().pad(0.15));
+                }
+            } catch (err) {
+                console.error("Leaflet initialization failed: ", err);
+            }
+        }
+
+        // --- 5. グラフ描画 ---
+        function renderChart(type) {
+            activeChartType = type;
+            ['monthly', 'quarterly', 'yearly'].forEach(t => {
+                const btn = document.getElementById(`chart-tab-${t}`);
+                if (t === type) {
+                    btn.className = "px-3 py-1 bg-blue-600 text-white rounded-md text-[10px] font-bold";
+                } else {
+                    btn.className = "px-3 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-bold";
+                }
+            });
+
+            const activeProjects = projects.filter(p => p.status === 'active');
+            const dataMap = {};
+
+            activeProjects.forEach(p => {
+                if (!p.startDate) return;
+                const d = new Date(p.startDate);
+                let label = "";
+
+                if (type === 'monthly') {
+                    label = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+                } else if (type === 'quarterly') {
+                    const q = Math.ceil((d.getMonth() + 1) / 3);
+                    label = `${d.getFullYear()} Q${q}`;
+                } else {
+                    label = `${d.getFullYear()}年`;
+                }
+
+                if (!dataMap[label]) dataMap[label] = { amount: 0, profit: 0 };
+                dataMap[label].amount += p.amount;
+                dataMap[label].profit += p.amount * (p.profitRate / 100);
+            });
+
+            const sortedKeys = Object.keys(dataMap).sort();
+            const container = document.getElementById('chart-container');
+            
+            if (sortedKeys.length === 0) {
+                container.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">集計データがありません</div>`;
+                return;
+            }
+
+            const maxAmount = Math.max(...sortedKeys.map(k => dataMap[k].amount)) || 1;
+
+            let html = '<div class="w-full h-full flex items-end justify-around pt-6">';
+            sortedKeys.forEach(k => {
+                const item = dataMap[k];
+                const heightPercent = (item.amount / maxAmount) * 80;
+                const pRate = item.amount > 0 ? (item.profit / item.amount) * 100 : 0;
+
+                html += `
+                    <div class="flex flex-col items-center flex-grow group relative h-full justify-end">
+                        <div class="absolute -top-6 text-[9px] font-bold text-slate-800 bg-white shadow-lg border border-slate-100 p-1 rounded opacity-0 group-hover:opacity-100 transition z-20 pointer-events-none whitespace-nowrap">
+                            受注高: ${toThousandYenStr(item.amount)} (${pRate.toFixed(0)}%)
+                        </div>
+                        <div class="bg-blue-600 hover:bg-blue-500 w-6 md:w-10 rounded-t transition-all" style="height: ${Math.max(heightPercent, 4)}%"></div>
+                        <span class="text-[9px] md:text-xs text-slate-400 mt-1 truncate max-w-[50px]">{k}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // --- 6. 案件一覧・フィルター処理 ---
+        function applyFilters() {
+            const searchVal = document.getElementById('filter-search').value.toLowerCase();
+            const sectorVal = document.getElementById('filter-sector').value;
+            const rankFilterVal = document.getElementById('filter-rank').value;
+            const listContainer = document.getElementById('project-list');
+
+            const filtered = projects.filter(p => {
+                if (p.status !== 'active') return false;
+                const matchesSearch = p.clientName.toLowerCase().includes(searchVal) ||
+                                      p.projectName.toLowerCase().includes(searchVal) ||
+                                      p.address.toLowerCase().includes(searchVal) ||
+                                      p.partner.toLowerCase().includes(searchVal);
+                const matchesSector = sectorVal === 'all' || p.sector === sectorVal;
+                const matchesRank = rankFilterVal === 'all' || p.rank === rankFilterVal;
+                return matchesSearch && matchesSector && matchesRank;
+            });
+
+            // 確度ランクの優先順位順にソートする (A -> B -> C -> Other)
+            const rankPriority = { "A": 1, "B": 2, "C": 3, "Other": 4 };
+            filtered.sort((a, b) => {
+                const priorityA = rankPriority[a.rank] || 99;
+                const priorityB = rankPriority[b.rank] || 99;
+                return priorityA - priorityB;
+            });
+
+            let listHTML = "";
+            if (filtered.length === 0) {
+                listHTML = `<div class="p-8 text-center text-slate-400 text-xs">該当する案件はありません</div>`;
+            } else {
+                filtered.forEach(p => {
+                    const isSelected = selectedProjectId === p.id;
+                    const rankLabel = RANKS[p.rank]?.label || p.rank;
+                    const rankColor = RANKS[p.rank]?.color || "";
+                    
+                    // 未締結バッジの特別目立つスタイル
+                    let contractBadge = "";
+                    const currentStatus = p.contractStatus || "未締結";
+                    if (currentStatus === "未締結") {
+                        contractBadge = `<span class="inline-block px-1.5 py-0.5 text-[8px] font-black text-rose-700 bg-rose-100 border border-rose-200 rounded animate-pulse">未締結</span>`;
+                    } else {
+                        contractBadge = `<span class="inline-block px-1.5 py-0.5 text-[8px] font-bold text-slate-600 bg-slate-100 rounded">${currentStatus}</span>`;
+                    }
+
+                    listHTML += `
+                        <div onclick="selectProject('${p.id}')" class="px-4 py-2.5 cursor-pointer transition text-left border-b border-slate-150 hover:bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-3 ${isSelected ? 'bg-blue-50/70 border-l-4 border-l-blue-600 shadow-sm' : ''}">
+                            <!-- 左半分: 案件基本情報 (文字サイズを一律拡大) -->
+                            <div class="flex-grow min-w-0">
+                                <div class="flex flex-wrap gap-1.5 items-center mb-1.5">
+                                    <span class="inline-block px-2 py-0.5 text-[9px] font-bold text-white bg-slate-500 rounded">${p.sector}</span>
+                                    ${contractBadge}
+                                    <span class="inline-block px-2 py-0.5 text-[9px] font-bold rounded ${rankColor}">${rankLabel}</span>
+                                </div>
+                                <h4 class="font-extrabold text-slate-900 text-sm md:text-base lg:text-lg leading-tight truncate">${p.projectName}</h4>
+                                <p class="text-[11px] md:text-xs lg:text-sm text-slate-400 truncate mt-1">${p.clientName}</p>
+                            </div>
+                            
+                            <!-- 右半分: 財務3要素 (等幅3カラムグリッド割り振りと特大フォント化) -->
+                            <div class="w-full md:w-7/12 grid grid-cols-3 gap-1 md:gap-4 shrink-0 text-center border-t md:border-t-0 border-slate-100 pt-2 md:pt-0">
+                                <div class="px-1 border-r border-slate-200 md:border-r-0 md:border-l">
+                                    <span class="text-[8px] md:text-[9.5px] text-slate-400 block font-bold tracking-wider mb-1 leading-none">売上計上月</span>
+                                    <span class="text-xs md:text-sm lg:text-base xl:text-lg font-black text-slate-800 leading-none">${p.billingMonth ? p.billingMonth.replace('-', '/') : '未定'}</span>
+                                </div>
+                                <div class="px-1 border-r border-slate-200 md:border-r-0 md:border-l">
+                                    <span class="text-[8px] md:text-[9.5px] text-slate-400 block font-bold tracking-wider mb-1 leading-none">受注金額 (円)</span>
+                                    <span class="text-xs md:text-sm lg:text-base xl:text-lg font-black text-blue-600 leading-none truncate block max-w-[130px] mx-auto" title="¥${p.amount.toLocaleString()}">¥${p.amount.toLocaleString()}</span>
+                                </div>
+                                <div class="px-1 md:border-l">
+                                    <span class="text-[8px] md:text-[9.5px] text-slate-400 block font-bold tracking-wider mb-1 leading-none">想定利益率</span>
+                                    <span class="text-xs md:text-sm lg:text-base xl:text-lg font-black text-emerald-600 leading-none">${p.profitRate.toFixed(1)}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            listContainer.innerHTML = listHTML;
+
+            renderDetailPanel();
+        }
+
+        // PC・モバイル共通の一覧・詳細画面の表示切り替え処理
+        function selectProject(id) {
+            selectedProjectId = id;
+            
+            // 画面幅にかかわらず、リストを非表示にして詳細パネルを表示
+            document.getElementById('project-list-container').classList.add('hidden');
+            document.getElementById('project-detail-panel').classList.remove('hidden');
+            
+            applyFilters();
+        }
+
+        // 案件一覧に戻る
+        function backToList() {
+            selectedProjectId = null;
+            document.getElementById('project-list-container').classList.remove('hidden');
+            document.getElementById('project-detail-panel').classList.add('hidden');
+            applyFilters();
+        }
+
+        // 没にするボタン押下時、要因入力モーダルを立ち上げる
+        function triggerMoveToArchive(id) {
+            lostProjectPendingId = id;
+            document.getElementById('lost-reason-tag').value = "価格競合（競合負け）";
+            document.getElementById('lost-reason-notes').value = "";
+            document.getElementById('lost-reason-modal').classList.remove('hidden');
+        }
+
+        function closeLostReasonModal(isSave) {
+            document.getElementById('lost-reason-modal').classList.add('hidden');
+            
+            if (isSave && lostProjectPendingId) {
+                const tag = document.getElementById('lost-reason-tag').value;
+                const notes = document.getElementById('lost-reason-notes').value.trim() || "要因記載なし";
+                
+                projects = projects.map(p => {
+                    if (p.id === lostProjectPendingId) {
+                        return {
+                            ...p,
+                            status: "archived",
+                            lostReasonTag: tag,
+                            lostReasonNotes: notes
+                        };
+                    }
+                    return p;
+                });
+
+                localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+                showToast("没（失注）要因を記録し、失注フォルダにアーカイブしました。", "info");
+                
+                // リストに戻す
+                backToList();
+                refreshAll();
+            }
+            lostProjectPendingId = null;
+        }
+
+        // 詳細プレビュー
+        function renderDetailPanel() {
+            const panel = document.getElementById('project-detail-panel');
+            const selected = projects.find(p => p.id === selectedProjectId && p.status === 'active');
+
+            if (!selected) {
+                panel.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-center items-center text-center text-slate-400 min-h-[300px]">
+                        <svg class="w-12 h-12 mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <p class="text-sm font-bold">案件詳細</p>
+                        <p class="text-xs mt-1">案件を選択すると、詳細データがここに表示されます。</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let diffDays = 0;
+            if (selected.startDate && selected.endDate) {
+                const s = new Date(selected.startDate);
+                const e = new Date(selected.endDate);
+                diffDays = Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24)) + 1;
+            }
+
+            const pAmount = selected.amount || 0;
+            const pProfit = Math.round(pAmount * (selected.profitRate / 100));
+            const rankLabel = RANKS[selected.rank]?.label || selected.rank;
+            const rankColor = RANKS[selected.rank]?.color || "";
+
+            const currentStatus = selected.contractStatus || "未締結";
+            let contractDetailDisplay = "";
+            if (currentStatus === "未締結") {
+                contractDetailDisplay = `<div class="bg-rose-50 border border-rose-300 p-2 rounded-lg text-center animate-pulse"><span class="text-rose-700 font-extrabold text-xs block">⚠️ 契約状況: 未締結</span></div>`;
+            } else {
+                contractDetailDisplay = `<div class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-center"><span class="text-slate-700 font-bold text-xs block">${currentStatus}</span></div>`;
+            }
+
+            // 【新規】簡易ガントチャート（工事スケジュールバー）の自動生成
+            let ganttChartHTML = "";
+            if (selected.initiationDate && selected.startDate && selected.endDate) {
+                const initDate = new Date(selected.initiationDate);
+                const startDate = new Date(selected.startDate);
+                const endDate = new Date(selected.endDate);
+                
+                const totalSpanDays = Math.ceil(Math.abs(endDate - initDate) / (1000 * 60 * 60 * 24)) || 1;
+                const designSpanDays = Math.ceil(Math.abs(startDate - initDate) / (1000 * 60 * 60 * 24)) || 0;
+                const constructionSpanDays = Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24)) || 0;
+
+                const designPercent = Math.max(5, Math.min(95, (designSpanDays / totalSpanDays) * 100));
+                const constructionPercent = 100 - designPercent;
+
+                ganttChartHTML = `
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <span class="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">📊 簡易工程タイムライン (着手 〜 引渡)</span>
+                        <div class="flex h-6 rounded-lg overflow-hidden shadow-inner font-bold text-[9px] text-white">
+                            <div class="bg-indigo-500 flex items-center justify-center transition-all duration-300" style="width: ${designPercent}%" title="準備・設計調印: ${designSpanDays}日間">
+                                設計等 (${designSpanDays}日)
+                            </div>
+                            <div class="bg-blue-600 flex items-center justify-center transition-all duration-300 border-l border-white/20" style="width: ${constructionPercent}%" title="工事期間: ${constructionSpanDays}日間">
+                                施工 (${constructionSpanDays}日)
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-[9px] text-slate-400">
+                            <span>着手日: <strong>${selected.initiationDate}</strong></span>
+                            <span>着工日: <strong>${selected.startDate}</strong></span>
+                            <span>引渡予定日: <strong>${selected.endDate}</strong></span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                ganttChartHTML = `
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-slate-400 text-xs">
+                        ※「着手日」「着工予定日」「引渡予定日」を入力すると、簡易工程タイムラインバーが自動生成されます。
+                    </div>
+                `;
+            }
+
+            panel.innerHTML = `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+                    <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                        <div class="flex items-center space-x-3 w-full md:w-auto">
+                            <!-- 一覧に戻るボタン (PC・モバイル共通) -->
+                            <button onclick="backToList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs flex items-center space-x-1 whitespace-nowrap shadow-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                                <span>← 一覧に戻る</span>
+                            </button>
+                            <div class="truncate">
+                                <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
+                                    <span class="px-2.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">${selected.sector}</span>
+                                    <span class="px-2.5 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded">${selected.workType}</span>
+                                    <span class="px-2.5 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded">${selected.structure}</span>
+                                    <span class="px-2.5 py-0.5 text-[10px] font-bold rounded border ${rankColor}">${rankLabel}</span>
+                                </div>
+                                <h3 class="text-base md:text-xl font-bold text-slate-900 truncate">${selected.projectName}</h3>
+                                <p class="text-xs text-slate-500 truncate">${selected.clientName}</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1 md:self-center">
+                            <button onclick="openFormModal('clone', '${selected.id}')" title="複製して新規" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                            </button>
+                            <button onclick="openFormModal('edit', '${selected.id}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex items-center space-x-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                <span>編集</span>
+                            </button>
+                            <button onclick="triggerMoveToArchive('${selected.id}')" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition flex items-center space-x-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                                <span>没にする</span>
+                            </button>
+                            <button onclick="triggerDelete('${selected.id}')" class="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-5 space-y-5 flex-grow overflow-y-auto">
+                        <!-- 重要財務数値の特大カード形式 -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl border border-slate-200">
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-150">
+                                <span class="text-[10px] md:text-xs text-slate-400 block font-bold tracking-wider uppercase">正確な受注金額 (円)</span>
+                                <span class="text-lg md:text-2xl font-black text-blue-600 block mt-1">¥${pAmount.toLocaleString()}</span>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-150">
+                                <span class="text-[10px] md:text-xs text-slate-400 block font-bold tracking-wider uppercase">想定粗利益 (利益率)</span>
+                                <span class="text-lg md:text-2xl font-black text-emerald-600 block mt-1">
+                                    ¥${pProfit.toLocaleString()}
+                                    <span class="text-xs md:text-sm font-extrabold text-slate-500 ml-1">(${selected.profitRate.toFixed(1)}%)</span>
+                                </span>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-150">
+                                <span class="text-[10px] md:text-xs text-slate-400 block font-bold tracking-wider uppercase">売上予定月 / 施工日数</span>
+                                <span class="text-base md:text-lg font-black text-slate-900 block mt-1">
+                                    ${selected.billingMonth} 計上予定
+                                    <span class="text-xs font-bold text-slate-500 block mt-0.5">${diffDays}日間の工事日数</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 【新規】ガントチャート工程表の挿入 -->
+                        ${ganttChartHTML}
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs md:text-sm">
+                            <div>
+                                <span class="text-slate-400 font-bold block mb-1">契約状況</span>
+                                ${contractDetailDisplay}
+                            </div>
+                            <div class="md:col-span-2">
+                                <span class="text-slate-400 font-bold block mb-1">現場住所</span>
+                                <div class="flex items-center space-x-2">
+                                    <p class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-800 flex-grow truncate">${selected.address || '（未登録）'}</p>
+                                    ${selected.address ? `
+                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.address)}" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg text-xs font-bold shadow shrink-0 flex items-center space-x-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            <span>ナビ</span>
+                                        </a>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 font-bold block mb-1">協力業者名</span>
+                                <p class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-800">${selected.partner || '（未登録）'}</p>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 font-bold block mb-1">着手日</span>
+                                <p class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-800">${selected.initiationDate || '（未登録）'}</p>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 font-bold block mb-1">着工予定日</span>
+                                <p class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-800">${selected.startDate || '（未登録）'}</p>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 font-bold block mb-1">引渡予定日</span>
+                                <p class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-slate-800">${selected.endDate || '（未登録）'}</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="text-[11px] text-slate-400 font-bold block mb-1">備考</span>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[80px] text-xs md:text-sm text-slate-700 whitespace-pre-wrap">${selected.notes || '備考記載なし'}</div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 flex justify-end">
+                            <button onclick="triggerPrint('${selected.id}')" class="px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                <span>この案件のA4横調書を印刷/PDF出力</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 7. 没案件（アーカイブ）テーブル描画 ---
+        function renderArchiveTable() {
+            const body = document.getElementById('archive-table-body');
+            const archived = projects.filter(p => p.status === 'archived');
+
+            if (archived.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 text-xs">没案件はありません</td></tr>`;
+                return;
+            }
+
+            let html = "";
+            archived.forEach(p => {
+                const rankLabel = RANKS[p.rank]?.label || p.rank;
+                const rankColor = RANKS[p.rank]?.color || "";
+                
+                // 没理由の表示
+                const lostTag = p.lostReasonTag || "分類なし";
+                const lostNotes = p.lostReasonNotes || "詳細記載なし";
+
+                html += `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs">
+                        <td class="px-4 py-3">
+                            <div class="font-bold text-slate-900">${p.clientName}</div>
+                            <div class="text-[9px] mt-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md inline-block">
+                                <strong>没要因 [${lostTag}]:</strong> ${lostNotes}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-slate-600">${p.projectName}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-block px-1.5 py-0.5 text-[8px] bg-slate-200 text-slate-700 rounded mr-1">${p.sector}</span>
+                            <span class="inline-block px-1.5 py-0.5 text-[8px] rounded border ${rankColor}">${rankLabel}</span>
+                        </td>
+                        <td class="px-4 py-3 font-semibold text-slate-800">¥${p.amount.toLocaleString()}</td>
+                        <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                            <button onclick="restoreFromArchive('${p.id}')" title="復活" class="text-blue-600 hover:bg-blue-50 p-1 rounded transition inline-block">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 4.89M9 11l3-3 3 3m-3-3v12" /></svg>
+                            </button>
+                            <button onclick="openFormModal('clone', '${p.id}')" title="複製" class="text-slate-600 hover:bg-slate-100 p-1 rounded transition inline-block">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                            </button>
+                            <button onclick="triggerDelete('${p.id}')" title="完全削除" class="text-rose-600 hover:bg-rose-50 p-1 rounded transition inline-block">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            body.innerHTML = html;
+        }
+
+        // --- 8. AI診断（目標達成のための営業方向性と打開策） ---
+        async function triggerAIDiagnosis() {
+            const aiBtn = document.getElementById('ai-btn');
+            const panel = document.getElementById('ai-result-panel');
+            
+            aiBtn.disabled = true;
+            aiBtn.innerHTML = `
+                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span>分析戦略立案中...</span>
+            `;
+
+            const activeProjects = projects.filter(p => p.status === 'active');
+            if (activeProjects.length === 0) {
+                showToast("有効なアクティブ案件データがありません。", "warning");
+                aiBtn.disabled = false;
+                aiBtn.textContent = "AI戦略診断を実行";
+                return;
+            }
+
+            const apiKey = ""; 
+
+            const fetchWithRetry = async (url, options, retries = 5, delay = 1000) => {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    if (retries > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return fetchWithRetry(url, options, retries - 1, delay * 2);
+                    }
+                    throw error;
+                }
+            };
+
+            const dataSummary = activeProjects.map(p => `- 確度:${p.rank}, 企業:${p.clientName}, 案件:${p.projectName}, 業態:${p.sector}, 売上計上月:${p.billingMonth}, 金額:${p.amount}円, 利益率:${p.profitRate}%`).join('\n');
+            
+            const userQuery = `
+以下の商業建築・内装工事の受注進捗、確度ランク、および個人年間売上目標額「¥${targetAmount.toLocaleString()}」に基づいて、目標達成のための精密な経営アドバイスを策定してください。
+特にお世辞や妥協を一切排し、忖度のない厳しい視点で現状の受注単価や成約率、工期のボトルネックをバッサリと指摘してください。
+
+出力項目：
+1. 目標を100%達成するための「忖度ない営業の具体的な方向性」
+2. 現在のAランク（確定）とB・Cランク（候補）データから見積もる、極めて現実的でシビアな「想定売上の着地見込み」
+3. 目標に届かない場合の「確度の引き上げ、見積受注単価の見直し、必要な新規獲得件数を含めた挑戦的な打開策」
+
+【案件進捗データ】
+${dataSummary}
+`;
+            const systemPrompt = `あなたは店舗内装・施工会社の極めて有能で辛口な経営顧問です。確度ランク（A=契約確定、B=見込み、C=引合い）と目標値（${targetAmount}円）をシビアに対照させ、「受注単価の見直し」「必要な新規獲得本数の再算出」「工期の平準化」など、事実に基づく現実的で挑戦的な打開計画を立案してください。JSON（profitability, growth, improvements, recommendedSectorsの4要素）で回答してください。`;
+
+            try {
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                profitability: { type: "STRING", description: "目標に向けた辛口な営業戦略の方向性" },
+                                growth: { type: "STRING", description: "シビアに見積もる売上の想定着地見込み" },
+                                improvements: { type: "STRING", description: "単価・必要成約件数を含めた現実的で挑戦的な打開策" },
+                                recommendedSectors: { type: "STRING", description: "利益率を高めるために攻めるべき推奨業態と理由" }
+                            },
+                            required: ["profitability", "growth", "improvements", "recommendedSectors"]
+                        }
+                    }
+                };
+
+                const result = await fetchWithRetry(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    }
+                );
+
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    const data = JSON.parse(text);
+                    renderAIResult(data);
+                    showToast("AI戦略達成診断が完了しました。", "success");
+                } else {
+                    throw new Error("No response");
+                }
+            } catch (err) {
+                console.warn("API offline / simulated diagnostic running.");
+                runLocalAIDiagnosis(activeProjects);
+            } finally {
+                aiBtn.disabled = false;
+                aiBtn.textContent = "AI戦略診断を実行";
+            }
+        }
+
+        // ローカル戦略診断 (辛口・忖度なし仕様に調整)
+        function runLocalAIDiagnosis(activeList) {
+            let totalA = 0;
+            let totalB = 0;
+            let totalC = 0;
+
+            activeList.forEach(p => {
+                if (p.rank === 'A') totalA += p.amount;
+                else if (p.rank === 'B') totalB += p.amount;
+                else if (p.rank === 'C') totalC += p.amount;
+            });
+
+            const expectedClose = totalA + (totalB * 0.5) + (totalC * 0.15); // 辛口加重 (Bを50%, Cを15%に下方修正)
+            const gap = targetAmount - expectedClose;
+            
+            // 平均単価の算出
+            const avgUnitPrice = activeList.length > 0 ? (totalA + totalB) / activeList.length : 15000000;
+            const requiredCountToFillGap = Math.ceil(gap / avgUnitPrice);
+
+            const mockDiagnosis = {
+                profitability: `【顧問提言】年間目標額「¥${targetAmount.toLocaleString()}」に対して、確定済みのAランク額は「¥${totalA.toLocaleString()}」のみ。進捗率はわずか ${( (totalA/targetAmount)*100 ).toFixed(1)}% です。現在の「待ち」の営業スタイルでは未達が確定します。Bランク（見込）の滞留案件に対して見積有効期限の終了を口実に最後のアプローチをかけ、今月中にAランクへと強引にクロージングする必要があります。`,
+                growth: `【シビアな着地予測】確度を加味した現実的な売上想定着地は **¥${Math.round(expectedClose).toLocaleString()}** に留まります。目標金額との致命的なギャップ **¥${Math.round(Math.max(0, gap)).toLocaleString()}** の発生が予測されます。これを計画の微修正で済ませず、受注単価自体のアップ、あるいは未締結案件の請負契約締結を前提とした強気な回収計画へ移行しなければ、今期の目標クリアは不可能です。`,
+                improvements: `【挑戦的打開策】残されたギャップを埋めるためには、現在保有する平均受注単価（約¥${Math.round(avgUnitPrice/10000).toLocaleString()}万円）をベースに考えると、今期中に **最低 ${requiredCountToFillGap}件 の新規Aランク契約** をねじ込む必要があります。これをクリアするためには、①既存施工施主への「2Fオフィス増床」や「別事業所改修」のクロスセル攻勢、②見積段階での一式価格を細分化し、雑工事の上乗せ分として平均受注単価を約10〜15%引き上げる価格交渉を本日より全現場で行ってください。`,
+                recommendedSectors: `【戦略的推奨領域】現在の施工リソースを最大限に活かし、高粗利（利益率25%以上）を確実に狙える「医療法人の分院新装工事（医療RC造）」および「リハビリ特化デイサービス改修（福祉）」へのリソース集中を強く提案します。これらの業態は行政の補助金申請スケジュールが絡むため、仕様決定から請負締結までのリードタイムが短く、かつ一般店舗と比較して価格叩きの競合が少ないため、営業効率を極大化させることができます。`
+            };
+
+            renderAIResult(mockDiagnosis);
+            showToast("ローカル戦略ロードマップ診断を生成しました。", "info");
+        }
+
+        function renderAIResult(data) {
+            const panel = document.getElementById('ai-result-panel');
+            panel.innerHTML = `
+                <div class="p-4 bg-white/5 rounded-xl border border-white/10">
+                    <span class="text-xs font-bold text-amber-400 flex items-center mb-1.5">
+                        <span class="w-1.5 h-1.5 bg-amber-400 rounded-full mr-2"></span>【厳格】営業の方向性
+                    </span>
+                    <p class="text-[11px] leading-relaxed text-slate-200">${data.profitability}</p>
+                </div>
+                <div class="p-4 bg-white/5 rounded-xl border border-white/10">
+                    <span class="text-xs font-bold text-cyan-400 flex items-center mb-1.5">
+                        <span class="w-1.5 h-1.5 bg-cyan-400 rounded-full mr-2"></span>【シビア予測】売上着地想定
+                    </span>
+                    <p class="text-[11px] leading-relaxed text-slate-200">${data.growth}</p>
+                </div>
+                <div class="p-4 bg-white/5 rounded-xl border border-white/10">
+                    <span class="text-xs font-bold text-emerald-400 flex items-center mb-1.5">
+                        <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-2"></span>目標到達への打開策
+                    </span>
+                    <p class="text-[11px] leading-relaxed text-slate-200">${data.improvements}</p>
+                </div>
+                <div class="p-4 bg-white/5 rounded-xl border border-white/10">
+                    <span class="text-xs font-bold text-violet-400 flex items-center mb-1.5">
+                        <span class="w-1.5 h-1.5 bg-violet-400 rounded-full mr-2"></span>戦略的推奨領域
+                    </span>
+                    <p class="text-[11px] leading-relaxed text-slate-200">${data.recommendedSectors}</p>
+                </div>
+            `;
+        }
+
+        // --- 9. モーダルフォーム操作 ---
+        function populateSelectors() {
+            const createOptions = (arr, elId) => {
+                const el = document.getElementById(elId);
+                el.innerHTML = arr.map(item => `<option value="${item}">${item}</option>`).join('');
+            };
+
+            createOptions(SECTORS, 'form-sector');
+            createOptions(WORK_TYPES, 'form-workType');
+            createOptions(STRUCTURES, 'form-structure');
+
+            const filterSec = document.getElementById('filter-sector');
+            filterSec.innerHTML = '<option value="all">すべての業態</option>' + SECTORS.map(s => `<option value="${s}">${s}</option>`).join('');
+        }
+
+        function openFormModal(mode, id = null) {
+            const modal = document.getElementById('form-modal');
+            const title = document.getElementById('form-modal-title');
+            const form = document.getElementById('project-form');
+            form.reset();
+
+            // 売上月のデフォルト値として現在の「年-月」を設定
+            const today = new Date();
+            const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            document.getElementById('form-billingMonth').value = yearMonth;
+
+            if (mode === 'create') {
+                title.textContent = "新規案件の登録";
+                document.getElementById('form-id').value = "";
+                document.getElementById('form-contractStatus').value = "未締結";
+            } else if (mode === 'edit' && id) {
+                title.textContent = "案件情報の編集";
+                const p = projects.find(x => x.id === id);
+                if (p) {
+                    document.getElementById('form-id').value = p.id;
+                    document.getElementById('form-clientName').value = p.clientName;
+                    document.getElementById('form-projectName').value = p.projectName;
+                    document.getElementById('form-sector').value = p.sector;
+                    document.getElementById('form-workType').value = p.workType;
+                    document.getElementById('form-structure').value = p.structure;
+                    document.getElementById('form-address').value = p.address || "";
+                    document.getElementById('form-amount').value = p.amount || "";
+                    document.getElementById('form-profitRate').value = p.profitRate || "";
+                    document.getElementById('form-startDate').value = p.startDate || "";
+                    document.getElementById('form-endDate').value = p.endDate || "";
+                    document.getElementById('form-partner').value = p.partner || "";
+                    document.getElementById('form-notes').value = p.notes || "";
+                    document.getElementById('form-rank').value = p.rank || "A";
+                    document.getElementById('form-billingMonth').value = p.billingMonth || yearMonth;
+                    document.getElementById('form-initiationDate').value = p.initiationDate || "";
+                    document.getElementById('form-contractStatus').value = p.contractStatus || "未締結";
+                }
+            } else if (mode === 'clone' && id) {
+                title.textContent = "案件の複製（新しく保存）";
+                const p = projects.find(x => x.id === id);
+                if (p) {
+                    document.getElementById('form-id').value = "";
+                    document.getElementById('form-clientName').value = p.clientName;
+                    document.getElementById('form-projectName').value = `${p.projectName} - コピー`;
+                    document.getElementById('form-sector').value = p.sector;
+                    document.getElementById('form-workType').value = p.workType;
+                    document.getElementById('form-structure').value = p.structure;
+                    document.getElementById('form-address').value = p.address || "";
+                    document.getElementById('form-amount').value = p.amount || "";
+                    document.getElementById('form-profitRate').value = p.profitRate || "";
+                    document.getElementById('form-startDate').value = p.startDate || "";
+                    document.getElementById('form-endDate').value = p.endDate || "";
+                    document.getElementById('form-partner').value = p.partner || "";
+                    document.getElementById('form-notes').value = p.notes || "";
+                    document.getElementById('form-rank').value = p.rank || "A";
+                    document.getElementById('form-billingMonth').value = p.billingMonth || yearMonth;
+                    document.getElementById('form-initiationDate').value = p.initiationDate || "";
+                    document.getElementById('form-contractStatus').value = p.contractStatus || "未締結";
+                }
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeFormModal() {
+            document.getElementById('form-modal').classList.add('hidden');
+        }
+
+        function saveProject(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('form-id').value;
+            const newProject = {
+                id: id || `p_${Date.now()}`,
+                clientName: document.getElementById('form-clientName').value,
+                projectName: document.getElementById('form-projectName').value,
+                sector: document.getElementById('form-sector').value,
+                workType: document.getElementById('form-workType').value,
+                structure: document.getElementById('form-structure').value,
+                address: document.getElementById('form-address').value,
+                amount: parseFloat(document.getElementById('form-amount').value) || 0,
+                profitRate: parseFloat(document.getElementById('form-profitRate').value) || 0,
+                startDate: document.getElementById('form-startDate').value,
+                endDate: document.getElementById('form-endDate').value,
+                partner: document.getElementById('form-partner').value,
+                notes: document.getElementById('form-notes').value,
+                rank: document.getElementById('form-rank').value,
+                billingMonth: document.getElementById('form-billingMonth').value,
+                initiationDate: document.getElementById('form-initiationDate').value,
+                contractStatus: document.getElementById('form-contractStatus').value,
+                status: "active"
+            };
+
+            if (id) {
+                projects = projects.map(p => p.id === id ? newProject : p);
+                showToast("案件情報および契約ステータスを更新しました。", "success");
+            } else {
+                projects.unshift(newProject);
+                showToast("案件を新しい確度ランクおよび契約状況で保存しました。", "success");
+            }
+
+            localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+            closeFormModal();
+            
+            // 登録・更新後は自動的に一覧リスト画面に戻す
+            backToList();
+            refreshAll();
+        }
+
+        function moveToArchive(id) {
+            projects = projects.map(p => p.id === id ? { ...p, status: "archived" } : p);
+            localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+            showToast("案件を『没案件フォルダ』に保存しました。", "info");
+            
+            // リストに戻す
+            backToList();
+            refreshAll();
+        }
+
+        function restoreFromArchive(id) {
+            projects = projects.map(p => p.id === id ? { ...p, status: "active" } : p);
+            localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+            showToast("案件をアクティブに復帰させました。", "success");
+            refreshAll();
+        }
+
+        // --- 10. カスタムダイアログ確認 ---
+        function triggerDelete(id) {
+            const confirmModal = document.getElementById('confirm-modal');
+            confirmModal.classList.remove('hidden');
+            
+            confirmCallback = () => {
+                projects = projects.filter(p => p.id !== id);
+                localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+                showToast("案件データをシステムから完全に消去しました。", "info");
+                
+                // リストに戻す
+                backToList();
+                refreshAll();
+            };
+        }
+
+        function closeConfirm(isOk) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (isOk && confirmCallback) {
+                confirmCallback();
+            }
+            confirmCallback = null;
+        }
+
+        document.getElementById('confirm-ok-btn').addEventListener('click', () => closeConfirm(true));
+
+        // --- 11. 印刷・A4横PDF出力機能 ---
+        function triggerPrint(projectId = null) {
+            const mainContent = document.querySelector('main');
+            const header = document.querySelector('header');
+            const printSection = document.getElementById('tab-content-print');
+            const printSheet = document.getElementById('print-sheet');
+
+            mainContent.classList.add('hidden');
+            header.classList.add('hidden');
+            printSection.classList.remove('hidden');
+
+            const dateStr = new Date().toLocaleDateString('ja-JP');
+
+            if (projectId) {
+                // 個別調書 (A4横1枚)
+                const p = projects.find(x => x.id === projectId);
+                let diffDays = "-";
+                if (p.startDate && p.endDate) {
+                    diffDays = Math.ceil(Math.abs(new Date(p.endDate) - new Date(p.startDate)) / (1000*60*60*24)) + 1;
+                }
+                const profitAmount = Math.round(p.amount * (p.profitRate/100));
+                const rankLabel = RANKS[p.rank]?.label || p.rank;
+                const currentContStatus = p.contractStatus || "未締結";
+
+                printSheet.innerHTML = `
+                    <div class="h-full flex flex-col justify-between text-[11px] leading-relaxed">
+                        <div>
+                            <div class="flex justify-between items-start border-b-2 border-slate-900 pb-2 mb-3">
+                                <div>
+                                    <span class="text-[9px] text-slate-400 font-bold block">ArchSFA SYSTEM INDIVIDUAL REPORT</span>
+                                    <h1 class="text-xl font-bold text-slate-900">${p.projectName}</h1>
+                                    <p class="text-slate-600 font-bold">施主企業名: ${p.clientName}</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[8px] text-slate-400 block">出力日: ${dateStr}</span>
+                                    <span class="inline-block px-2 py-0.5 mt-1 bg-slate-900 text-white text-[9px] font-bold rounded">
+                                        確度確約: ${rankLabel}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                    <span class="text-[9px] font-bold text-slate-500 block border-b pb-1 mb-1.5">■ 営業財務実績</span>
+                                    <div class="space-y-1.5">
+                                        <div>
+                                            <span class="text-[8px] text-slate-400 block">受注金額 (円)</span>
+                                            <span class="text-xs font-bold text-slate-900">¥${p.amount.toLocaleString()}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-[8px] text-slate-400 block">想定利益額 (利益率)</span>
+                                            <span class="text-xs font-bold text-emerald-600">¥${profitAmount.toLocaleString()} (${p.profitRate.toFixed(1)}%)</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-[8px] text-slate-400 block">売上計上予定月</span>
+                                            <span class="font-bold text-blue-600">${p.billingMonth.replace('-', '/')}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                    <span class="text-[9px] font-bold text-slate-500 block border-b pb-1 mb-1.5">■ 施工計画概要</span>
+                                    <div class="grid grid-cols-2 gap-2 text-[10px]">
+                                        <div>
+                                            <span class="text-slate-400 font-bold block">現場施工住所</span>
+                                            <span class="text-slate-800 font-semibold truncate block">${p.address || '（未登録）'}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 font-bold block">主要構造</span>
+                                            <span class="text-slate-800 font-semibold block">${p.structure}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 font-bold block">契約状況</span>
+                                            <span class="font-extrabold ${currentContStatus === '未締結' ? 'text-rose-600' : 'text-slate-800'}">${currentContStatus}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 font-bold block">工期期間</span>
+                                            <span class="text-slate-800 font-semibold block">${p.startDate || '未定'} 〜 ${p.endDate || '未定'} (${diffDays}日間)</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 font-bold block">着手日</span>
+                                            <span class="text-slate-800 font-semibold block">${p.initiationDate || '未定'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <span class="text-[9px] font-bold text-slate-500 block border-b pb-1 mb-1.5">■ 特記事項・備考欄</span>
+                                <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 min-h-[60px] whitespace-pre-wrap text-[10px] text-slate-700">${p.notes || 'なし'}</div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-end border-t pt-2 text-[9px] text-slate-400">
+                            <span>ArchSFA 商業建築内装確度別調書 (A4横1枚保存版)</span>
+                            <span>承認捺印欄: ___________________________ / ___________________________</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 全体統計調書 (A4横1枚ジャスト)
+                const activeProjects = projects.filter(p => p.status === 'active');
+                let totalAmount = 0;
+                let totalProfit = 0;
+                let totalAmountA = 0;
+                let totalAmountB = 0;
+                let totalAmountC = 0;
+
+                activeProjects.forEach(p => {
+                    totalAmount += p.amount;
+                    totalProfit += p.amount * (p.profitRate/100);
+                    if (p.rank === 'A') totalAmountA += p.amount;
+                    else if (p.rank === 'B') totalAmountB += p.amount;
+                    else if (p.rank === 'C') totalAmountC += p.amount;
+                });
+
+                const rateA = targetAmount > 0 ? (totalAmountA / targetAmount) * 100 : 0;
+                const rateAll = targetAmount > 0 ? (totalAmount / targetAmount) * 100 : 0;
+
+                let sortedList = [...activeProjects].sort((a,b) => {
+                    if (a.billingMonth !== b.billingMonth) {
+                        return a.billingMonth.localeCompare(b.billingMonth);
+                    }
+                    return b.amount - a.amount;
+                });
+
+                let tableRowsHTML = "";
+                sortedList.slice(0, 10).forEach(p => {
+                    tableRowsHTML += `
+                        <tr class="border-b text-[9px] hover:bg-slate-50">
+                            <td class="px-2 py-1 font-bold text-slate-800">${p.billingMonth}</td>
+                            <td class="px-2 py-1 truncate max-w-[150px] font-bold text-slate-900" title="${p.projectName}">${p.projectName}</td>
+                            <td class="px-2 py-1 truncate max-w-[110px]" title="${p.clientName}">${p.clientName}</td>
+                            <td class="px-2 py-1 text-center font-bold text-blue-700">${p.rank}</td>
+                            <td class="px-2 py-1 text-right font-black text-slate-800">¥${p.amount.toLocaleString()}</td>
+                            <td class="px-2 py-1 text-center font-bold text-emerald-600">${p.profitRate}%</td>
+                        </tr>
+                    `;
+                });
+
+                if (sortedList.length > 10) {
+                    tableRowsHTML += `
+                        <tr class="text-[8px] bg-slate-50 text-slate-400 text-center font-semibold">
+                            <td colspan="6" class="py-1">※他 ${sortedList.length - 10} 件の案件（全体の総括には含まれています）</td>
+                        </tr>
+                    `;
+                }
+
+                printSheet.innerHTML = `
+                    <div class="h-full flex flex-col justify-between text-[11px] leading-normal">
+                        <div>
+                            <!-- ヘッダー -->
+                            <div class="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-3">
+                                <div>
+                                    <span class="text-[9px] text-slate-400 font-bold block">ArchSFA SYSTEM EXECUTIVES</span>
+                                    <h1 class="text-lg font-bold text-slate-900">営業受注計画 & 目標達成度 統括レポート</h1>
+                                    <p class="text-[9px] text-slate-500">※売上計上予定に基づいた確度分析</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[8px] text-slate-400 block">出力日: ${dateStr}</span>
+                                    <span class="inline-block px-2 py-0.5 mt-1 bg-slate-900 text-white text-[9px] font-bold rounded">
+                                        通期アクティブ案件: ${activeProjects.length}件
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- レポートコンテンツ並列2カラム -->
+                            <div class="grid grid-cols-5 gap-4">
+                                <!-- 左側: 目標達成度サマリー表 -->
+                                <div class="col-span-2 space-y-3">
+                                    <span class="text-[9.5px] font-bold text-slate-600 block border-b pb-1">■ 個人年間目標達成度サマリー</span>
+                                    
+                                    <table class="w-full text-left text-[10px] border-collapse bg-slate-50 rounded-lg overflow-hidden border">
+                                        <tbody>
+                                            <tr class="border-b">
+                                                <th class="px-2.5 py-1.5 bg-slate-100 text-slate-500 font-bold w-1/2">個人年間目標額</th>
+                                                <td class="px-2.5 py-1.5 font-bold text-slate-900 text-right">¥${targetAmount.toLocaleString()}</td>
+                                            </tr>
+                                            <tr class="border-b">
+                                                <th class="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 font-bold">Aランク実績合計</th>
+                                                <td class="px-2.5 py-1.5 font-black text-emerald-700 text-right">¥${totalAmountA.toLocaleString()}</td>
+                                            </tr>
+                                            <tr class="border-b">
+                                                <th class="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 font-medium">Aランク目標達成率</th>
+                                                <td class="px-2.5 py-1.5 font-black text-emerald-700 text-right">${rateA.toFixed(1)}%</td>
+                                            </tr>
+                                            <tr class="border-b">
+                                                <th class="px-2.5 py-1.5 bg-blue-50 text-blue-800 font-bold">Bランク見込合計</th>
+                                                <td class="px-2.5 py-1.5 font-black text-blue-700 text-right">¥${totalAmountB.toLocaleString()}</td>
+                                            </tr>
+                                            <tr class="border-b">
+                                                <th class="px-2.5 py-1.5 bg-amber-50 text-amber-800 font-bold">Cランク引合合計</th>
+                                                <td class="px-2.5 py-1.5 font-black text-amber-700 text-right">¥${totalAmountC.toLocaleString()}</td>
+                                            </tr>
+                                            <tr class="bg-slate-100/50 font-bold">
+                                                <th class="px-2.5 py-2 text-slate-700 font-bold">ヨミ総額(A+B+C)</th>
+                                                <td class="px-2.5 py-2 text-slate-900 text-right font-black">¥${totalAmount.toLocaleString()}</td>
+                                            </tr>
+                                            <tr class="bg-slate-100/50 font-bold">
+                                                <th class="px-2.5 py-2 text-slate-700 font-medium">想定目標達成率</th>
+                                                <td class="px-2.5 py-2 text-blue-700 text-right font-black">${rateAll.toFixed(1)}%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+
+                                    <div class="p-2.5 bg-slate-50 border rounded-lg text-[9px] leading-relaxed text-slate-500">
+                                        <strong>【営業推進・調書ノート】</strong><br/>
+                                        確実な目標達成には、Aランク実績の比率向上と、Cランク引合からの早期Bランク見込みへのランクアップ推進が不可欠となります。
+                                    </div>
+                                </div>
+
+                                <!-- 右側: 何月に何をいくら受注するのかを表したリスト -->
+                                <div class="col-span-3 space-y-2">
+                                    <span class="text-[9.5px] font-bold text-slate-600 block border-b pb-1">■ 月次・案件別営業受注計画表 (上位抽出)</span>
+                                    
+                                    <div class="border rounded-lg overflow-hidden bg-white">
+                                        <table class="w-full text-left text-[9.5px] border-collapse">
+                                            <thead class="bg-slate-100 font-bold text-slate-700 text-[8.5px]">
+                                                <tr>
+                                                    <th class="px-2 py-1.5">計上月</th>
+                                                    <th class="px-2 py-1.5">案件名</th>
+                                                    <th class="px-2 py-1.5">企業名</th>
+                                                    <th class="px-2 py-1.5 text-center">確度</th>
+                                                    <th class="px-2 py-1.5 text-right">受注金額 (円)</th>
+                                                    <th class="px-2 py-1.5 text-center">粗利</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${tableRowsHTML}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- フッター -->
+                        <div class="flex justify-between items-end border-t pt-2 text-[8px] text-slate-400">
+                            <span>ArchSFA 営業財務月次総括調書 (A4横1枚・役員決裁版)</span>
+                            <span>決裁捺印欄: ___________________________ / ___________________________</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // モバイル等での視認性を考慮し、100ms遅れて印刷ダイアログを起動
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        }
+
+        function exitPrint() {
+            document.getElementById('tab-content-print').classList.add('hidden');
+            document.querySelector('main').classList.remove('hidden');
+            document.querySelector('header').classList.remove('hidden');
+            switchTab(activeTab);
+        }
+
+        // --- 12. アプリ内通知（トースト） ---
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            const iconEl = document.getElementById('toast-icon');
+
+            msgEl.textContent = message;
+
+            if (type === "success") {
+                iconEl.innerHTML = `<svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            } else if (type === "warning") {
+                iconEl.innerHTML = `<svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
+            } else {
+                iconEl.innerHTML = `<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            }
+
+            toast.classList.remove('translate-x-80', 'opacity-0');
+            toast.classList.add('translate-x-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('translate-x-80', 'opacity-0');
+                toast.classList.remove('translate-x-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // --- 13. インポート＆エクスポートロジック ---
+        function exportData() {
+            try {
+                const dataStr = JSON.stringify(projects, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+
+                const exportFileDefaultName = 'arch_sfa_data.json';
+
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+                showToast("データをJSONファイルとしてエクスポートしました。", "success");
+            } catch (err) {
+                console.error(err);
+                showToast("エクスポート中にエラーが発生しました。", "warning");
+            }
+        }
+
+        function triggerImportClick() {
+            document.getElementById('import-file-input').click();
+        }
+
+        function importData(event) {
+            const input = event.target;
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function() {
+                try {
+                    const importedProjects = JSON.parse(reader.result);
+                    if (Array.isArray(importedProjects)) {
+                        const isValid = importedProjects.every(p => p.id && p.clientName && p.projectName);
+                        if (isValid) {
+                            projects = importedProjects;
+                            localStorage.setItem("arch_sfa_projects", JSON.stringify(projects));
+                            showToast("データのインポート（復元）が正常に完了しました。", "success");
+                            selectedProjectId = null;
+                            refreshAll();
+                        } else {
+                            showToast("インポートしたファイルのフォーマットがArchSFAの仕様と一致しません。", "warning");
+                        }
+                    } else {
+                        showToast("無効なデータ形式です。JSON配列のファイルを指定してください。", "warning");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("ファイルの解析中にエラーが発生しました。", "warning");
+                }
+                input.value = "";
+            };
+            reader.readAsText(file);
+        }
+
+        // --- 14. グローバルバインド ---
+        window.switchTab = switchTab;
+        window.updateTargetAmount = updateTargetAmount;
+        window.renderChart = renderChart;
+        window.applyFilters = applyFilters;
+        window.selectProject = selectProject;
+        window.backToList = backToList;
+        window.openFormModal = openFormModal;
+        window.closeFormModal = closeFormModal;
+        window.saveProject = saveProject;
+        window.moveToArchive = moveToArchive;
+        window.restoreFromArchive = restoreFromArchive;
+        window.triggerDelete = triggerDelete;
+        window.closeConfirm = closeConfirm;
+        window.triggerPrint = triggerPrint;
+        window.exitPrint = exitPrint;
+        window.triggerAIDiagnosis = triggerAIDiagnosis;
+        window.exportData = exportData;
+        window.triggerImportClick = triggerImportClick;
+        window.importData = importData;
+        window.triggerMoveToArchive = triggerMoveToArchive;
+        window.closeLostReasonModal = closeLostReasonModal;
+    </script>
+</body>
+</html>
