@@ -60,14 +60,10 @@
             .print-container {
                 width: 297mm;
                 height: 210mm;
-                padding: 10mm 12mm;
+                padding: 15mm;
                 box-sizing: border-box;
                 page-break-after: always;
                 background: white !important;
-                overflow: hidden; /* スクロールバーやはみ出しを確実に防止 */
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
             }
             @page {
                 size: A4 landscape;
@@ -93,7 +89,7 @@
                 </div>
                 <!-- チーム連携機能 ＆ タブメニュー -->
                 <div class="flex flex-wrap items-center gap-2">
-                    <nav class="flex space-x-1 overflow-x-auto pb-1 md:pb-0 safe-scroll">
+                    <nav class="flex space-x-1 overflow-x-auto safe-scroll">
                         <button id="tab-btn-dashboard" onclick="switchTab('dashboard')" class="px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition flex items-center space-x-1.5 whitespace-nowrap bg-blue-600 text-white">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                             <span>ダッシュボード</span>
@@ -144,7 +140,7 @@
         </div>
     </div>
 
-    <!-- 3.1 【新規】没要因の入力モーダル -->
+    <!-- 3.1 没要因の入力モーダル -->
     <div id="lost-reason-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
             <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
@@ -252,7 +248,7 @@
                     <span id="stat-amount" class="text-base md:text-xl font-bold text-slate-900 mt-1">¥0</span>
                 </div>
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
-                    <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">想定粗利 合計 (円)</span>
+                    <span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">想定利益 合計 (円)</span>
                     <span id="stat-profit" class="text-base md:text-xl font-bold text-emerald-600 mt-1">¥0</span>
                 </div>
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
@@ -469,7 +465,7 @@
                 </button>
             </div>
 
-            <!-- リスト＆詳細 (超コンパクト・等幅設計・シングルカラム仕様) -->
+            <!-- リスト＆詳細 (PC・モバイル共通のシングルカラム仕様) -->
             <div class="w-full">
                 <!-- 案件リスト -->
                 <div id="project-list-container" class="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden max-h-[70vh]">
@@ -686,8 +682,8 @@
             for (let i = 0; i < address.length; i++) {
                 hash = address.charCodeAt(i) + ((hash << 5) - hash);
             }
-            const lat = 35.6895 + (hash % 120) * 0.0012;
-            const lng = 139.6917 + ((hash >> 3) % 120) * 0.0014;
+            const lat = 35.6895 + (hash % 100) * 0.001;
+            const lng = 139.6917 + ((hash >> 3) % 100) * 0.0012;
             return [lat, lng];
         }
 
@@ -793,7 +789,7 @@
             const sectorStats = {};
             const clientStats = {};
             
-            // 【新規】協力業者別の売上額・件数の集計用
+            // 協力業者別の売上額・件数の集計用
             const partnerStats = {};
 
             SECTORS.forEach(s => sectorStats[s] = { count: 0, amount: 0, profit: 0 });
@@ -828,9 +824,8 @@
                 clientStats[p.clientName].amount += amount;
                 clientStats[p.clientName].profit += profit;
 
-                // 【新規】協力業者のクロス集計ロジック
+                // 協力業者のクロス集計ロジック
                 if (p.partner) {
-                    // カンマ区切りなどで複数業者を入力しているケースをケア
                     const partners = p.partner.split(/[、,]/).map(x => x.trim()).filter(x => x);
                     partners.forEach(partnerName => {
                         if (!partnerStats[partnerName]) {
@@ -918,7 +913,7 @@
             }
             document.getElementById('client-stats-tbody').innerHTML = clientHTML;
 
-            // 【新規】協力業者別発注シェアの集計描画 (ダッシュボード用)
+            // 協力業者別発注シェアの集計描画 (ダッシュボード用)
             let partnerHTML = "";
             const sortedPartners = Object.entries(partnerStats).sort((a,b) => b[1].amount - a[1].amount);
             if (sortedPartners.length === 0) {
@@ -935,10 +930,10 @@
             }
             document.getElementById('partner-stats-list').innerHTML = partnerHTML;
 
-            // 【新規】没（失注）要因タグ自動分析の集計描画
+            // 没（失注）要因タグ自動分析の集計描画
             renderLostReasonAnalytics(archivedProjects);
 
-            // 【新規】要注意アラート・リマインダー監視
+            // 要注意アラート・リマインダー監視
             renderAlertReminder(activeProjects);
 
             // 精密な売上計上小計表の生成 (A/Bランクのみ合計集計)
@@ -950,9 +945,10 @@
             renderArchiveTable();
         }
 
-        // --- 3.1 【新規】要注意アラート・リマインダー監視ロジック ---
+        // --- 3.1 要注意アラート・リマインダー監視ロジック ---
         function renderAlertReminder(activeProjects) {
             const container = document.getElementById('alert-reminder-section');
+            if (!container) return;
             container.innerHTML = "";
 
             const warnings = [];
@@ -972,7 +968,7 @@
 
             if (uncontracted.length > 0) {
                 warnings.push(`
-                    <div class="flex items-center space-x-2 text-rose-700 font-bold bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                    <div class="flex items-center space-x-2 text-rose-700 font-bold bg-rose-50 p-2.5 rounded-lg border border-rose-200 text-xs">
                         <span class="animate-ping w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
                         <span>🚨 契約状況【未締結】の案件が現在 <span class="text-sm underline">${uncontracted.length}件</span> 存在します。速やかに契約書または注文書の取り交わしを推進してください。</span>
                     </div>
@@ -981,7 +977,7 @@
 
             if (urgentUncontracted.length > 0) {
                 warnings.push(`
-                    <div class="flex items-center space-x-2 text-red-800 font-black bg-red-100 p-2.5 rounded-lg border border-red-300">
+                    <div class="flex items-center space-x-2 text-red-800 font-black bg-red-100 p-2.5 rounded-lg border border-red-300 text-xs">
                         <span class="animate-bounce text-base">⚠️</span>
                         <span>【最重要】引渡予定まで1ヶ月を切っている未締結の請負工事（${urgentUncontracted.map(p=>p.projectName).join('、')}）があります。施工リスクヘッジのため、即時営業の打開策を適用してください。</span>
                     </div>
@@ -1003,9 +999,10 @@
             }
         }
 
-        // --- 3.2 【新規】没（失注）要因タグ自動分析の集計描画 ---
+        // --- 3.2 没（失注）要因タグ自動分析の集計描画 ---
         function renderLostReasonAnalytics(archivedProjects) {
             const container = document.getElementById('lost-reason-analytics');
+            if (!container) return;
             if (archivedProjects.length === 0) {
                 container.innerHTML = `<div class="p-4 text-center text-slate-400">没データがないため、失注要因はありません</div>`;
                 return;
@@ -1036,7 +1033,7 @@
             container.innerHTML = html;
         }
 
-        // --- 3.5 精密売上計上計画・進捗表レンダリング (計上月・金額・利益率を強調表示 / A・Bランクのみ加算) ---
+        // --- 3.5 精密売上計上計画・進捗表レンダリング ---
         function renderProgressPlanTable(activeProjects) {
             const tbody = document.getElementById('progress-plan-tbody');
             
@@ -1350,7 +1347,7 @@
                             受注高: ${toThousandYenStr(item.amount)} (${pRate.toFixed(0)}%)
                         </div>
                         <div class="bg-blue-600 hover:bg-blue-500 w-6 md:w-10 rounded-t transition-all" style="height: ${Math.max(heightPercent, 4)}%"></div>
-                        <span class="text-[9px] md:text-xs text-slate-400 mt-1 truncate max-w-[50px]">{k}</span>
+                        <span class="text-[9px] md:text-xs text-slate-400 mt-1 truncate max-w-[50px]">${k}</span>
                     </div>
                 `;
             });
@@ -1531,7 +1528,7 @@
                 contractDetailDisplay = `<div class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-center"><span class="text-slate-700 font-bold text-xs block">${currentStatus}</span></div>`;
             }
 
-            // 【新規】簡易ガントチャート（工事スケジュールバー）の自動生成
+            // 簡易ガントチャート（工程タイムライン）の配色を、鮮明で判別しやすい新デザインに適用
             let ganttChartHTML = "";
             if (selected.initiationDate && selected.startDate && selected.endDate) {
                 const initDate = new Date(selected.initiationDate);
@@ -1546,19 +1543,21 @@
                 const constructionPercent = 100 - designPercent;
 
                 ganttChartHTML = `
-                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                         <span class="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">📊 簡易工程タイムライン (着手 〜 引渡)</span>
                         <div class="flex h-6 rounded-lg overflow-hidden shadow-inner font-bold text-[9px] text-white">
-                            <div class="bg-indigo-500 flex items-center justify-center transition-all duration-300" style="width: ${designPercent}%" title="準備・設計調印: ${designSpanDays}日間">
+                            <!-- 設計期間を視覚的に映えるエメラルドグリーン「bg-emerald-500」に -->
+                            <div class="bg-emerald-500 flex items-center justify-center transition-all duration-300" style="width: ${designPercent}%" title="準備・設計調印: ${designSpanDays}日間">
                                 設計等 (${designSpanDays}日)
                             </div>
-                            <div class="bg-blue-600 flex items-center justify-center transition-all duration-300 border-l border-white/20" style="width: ${constructionPercent}%" title="工事期間: ${constructionSpanDays}日間">
+                            <!-- 施工期間を鮮やかなオレンジ「bg-orange-500」に設定し完全差別化 -->
+                            <div class="bg-orange-500 flex items-center justify-center transition-all duration-300 border-l border-white/20" style="width: ${constructionPercent}%" title="工事期間: ${constructionSpanDays}日間">
                                 施工 (${constructionSpanDays}日)
                             </div>
                         </div>
                         <div class="flex justify-between text-[9px] text-slate-400">
-                            <span>着手日: <strong>${selected.initiationDate}</strong></span>
-                            <span>着工日: <strong>${selected.startDate}</strong></span>
+                            <span><span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>着手日: <strong>${selected.initiationDate}</strong></span>
+                            <span><span class="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 mr-1"></span>着工日: <strong>${selected.startDate}</strong></span>
                             <span>引渡予定日: <strong>${selected.endDate}</strong></span>
                         </div>
                     </div>
@@ -1632,7 +1631,7 @@
                             </div>
                         </div>
 
-                        <!-- 【新規】ガントチャート工程表の挿入 -->
+                        <!-- 簡易工程ガントチャート表の表示（新配色） -->
                         ${ganttChartHTML}
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs md:text-sm">
@@ -1796,10 +1795,10 @@ ${dataSummary}
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                profitability: { type: "STRING", description: "目標に向けた辛口な営業戦略の方向性" },
-                                growth: { type: "STRING", description: "シビアに見積もる売上の想定着地見込み" },
-                                improvements: { type: "STRING", description: "単価・必要成約件数を含めた現実的で挑戦的な打開策" },
-                                recommendedSectors: { type: "STRING", description: "利益率を高めるために攻めるべき推奨業態と理由" }
+                                profitability: { type: "STRING", description: "目標に向けた営業 of 方向性" },
+                                growth: { type: "STRING", description: "過去実績から見た売上の想定着地見込み" },
+                                improvements: { type: "STRING", description: "B・Cランク引き上げと目標クリアへの打開策" },
+                                recommendedSectors: { type: "STRING", description: "戦略上、今後攻め込んで受注すべき類似・推奨業態" }
                             },
                             required: ["profitability", "growth", "improvements", "recommendedSectors"]
                         }
@@ -1855,7 +1854,7 @@ ${dataSummary}
                 profitability: `【顧問提言】年間目標額「¥${targetAmount.toLocaleString()}」に対して、確定済みのAランク額は「¥${totalA.toLocaleString()}」のみ。進捗率はわずか ${( (totalA/targetAmount)*100 ).toFixed(1)}% です。現在の「待ち」の営業スタイルでは未達が確定します。Bランク（見込）の滞留案件に対して見積有効期限の終了を口実に最後のアプローチをかけ、今月中にAランクへと強引にクロージングする必要があります。`,
                 growth: `【シビアな着地予測】確度を加味した現実的な売上想定着地は **¥${Math.round(expectedClose).toLocaleString()}** に留まります。目標金額との致命的なギャップ **¥${Math.round(Math.max(0, gap)).toLocaleString()}** の発生が予測されます。これを計画の微修正で済ませず、受注単価自体のアップ、あるいは未締結案件の請負契約締結を前提とした強気な回収計画へ移行しなければ、今期の目標クリアは不可能です。`,
                 improvements: `【挑戦的打開策】残されたギャップを埋めるためには、現在保有する平均受注単価（約¥${Math.round(avgUnitPrice/10000).toLocaleString()}万円）をベースに考えると、今期中に **最低 ${requiredCountToFillGap}件 の新規Aランク契約** をねじ込む必要があります。これをクリアするためには、①既存施工施主への「2Fオフィス増床」や「別事業所改修」のクロスセル攻勢、②見積段階での一式価格を細分化し、雑工事の上乗せ分として平均受注単価を約10〜15%引き上げる価格交渉を本日より全現場で行ってください。`,
-                recommendedSectors: `【戦略的推奨領域】現在の施工リソースを最大限に活かし、高粗利（利益率25%以上）を確実に狙える「医療法人の分院新装工事（医療RC造）」および「リハビリ特化デイサービス改修（福祉）」へのリソース集中を強く提案します。これらの業態は行政の補助金申請スケジュールが絡むため、仕様決定から請負締結までのリードタイムが短く、かつ一般店舗と比較して価格叩きの競合が少ないため、営業効率を極大化させることができます。`
+                recommendedSectors: `【戦略的推奨領域】現在の施工リソースを最大限に活かし、高粗利（利益率25%以上）を確実に狙える「医療法人の分院新装工事（医療RC造）」および「リハビリ特化デイサービス改修（福祉）」へのリソース集中を強く提案します。これらの業態は行政の補助金申請スケジュールが絡むため、仕様決定から請負締結までのリードタイム...`
             };
 
             renderAIResult(mockDiagnosis);
@@ -1892,7 +1891,7 @@ ${dataSummary}
             `;
         }
 
-        // --- 9. モーダルフォーム操作 ---
+        // --- 9. モーダルフォーム操作 (契約状況のバインド追加) ---
         function populateSelectors() {
             const createOptions = (arr, elId) => {
                 const el = document.getElementById(elId);
@@ -2089,7 +2088,7 @@ ${dataSummary}
                             <div class="flex justify-between items-start border-b-2 border-slate-900 pb-2 mb-3">
                                 <div>
                                     <span class="text-[9px] text-slate-400 font-bold block">ArchSFA SYSTEM INDIVIDUAL REPORT</span>
-                                    <h1 class="text-xl font-bold text-slate-900">${p.projectName}</h1>
+                                    <h1 class="text-lg font-bold text-slate-900">${p.projectName}</h1>
                                     <p class="text-slate-600 font-bold">施主企業名: ${p.clientName}</p>
                                 </div>
                                 <div class="text-right">
@@ -2361,6 +2360,7 @@ ${dataSummary}
             }
         }
 
+        // インポートトリガー
         function triggerImportClick() {
             document.getElementById('import-file-input').click();
         }
@@ -2407,7 +2407,6 @@ ${dataSummary}
         window.openFormModal = openFormModal;
         window.closeFormModal = closeFormModal;
         window.saveProject = saveProject;
-        window.moveToArchive = moveToArchive;
         window.restoreFromArchive = restoreFromArchive;
         window.triggerDelete = triggerDelete;
         window.closeConfirm = closeConfirm;
